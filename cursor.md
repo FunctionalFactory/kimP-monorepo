@@ -1,76 +1,39 @@
-# Mission Briefing: Phase 1 Final Review - `kimp-core` Library Integration Test
+# Mission Briefing: Full Architecture Review & Potential Issue Analysis
 
 ## Overall Goal
 
-- To verify that the newly created `kimp-core` library and all its modules (`DatabaseModule`, `ExchangeModule`, `UtilsModule`, etc.) can be successfully imported and used by a host application (`kimP-Initiator`) within the monorepo.
-- This test will confirm that all dependencies are correctly resolved and the library is ready for production use.
+- To conduct a comprehensive review of the entire `kimp-core` library and the overall monorepo structure.
+- The objective is to identify any potential architectural weaknesses, logical inconsistencies, or future problems before we start building the application logic.
 
 ## Current Branch
 
-- Ensure all work is done on the `test/core-library-integration` branch.
+- Ensure all work is done on the `review/architecture-and-potential-issues` branch.
 
-## Step-by-Step Instructions for AI
+## Review Checklist for AI
 
-### Step 1: Prepare the Testbed Application
+Please review the entire codebase within `packages/kimp-core/` and answer the following questions in detail.
 
-1.  We will use `kimP-Initiator` as our testbed.
-2.  Open its main module file: `apps/kim-p-initiator/src/kim-p-initiator.module.ts`.
+### 1. Database Concurrency
 
-### Step 2: Import the Core Library
+- **File to Review**: `packages/kimp-core/src/db/arbitrage-record.service.ts`
+- **Question**: When we scale the `kimP-Finalizer` app to multiple instances, two instances might try to process the same `AWAITING_REBALANCE` cycle simultaneously. Does the current `arbitrage-record.service.ts` have any mechanism to prevent this race condition? If not, what is the standard solution using TypeORM's transaction and locking features (e.g., pessimistic locking)? Please provide a code example of how to implement a `findAndLockNextCycle` method.
 
-1.  In `kim-p-initiator.module.ts`, add `KimpCoreModule` from `@app/kimp-core` to the `imports` array. This is the primary integration step.
+### 2. Configuration & Environment Variables
 
-### Step 3: Create a Test Injection Service
+- **Files to Review**: `.env.example`, `packages/kimp-core/src/config/investment-config.service.ts`, `apps/**/src/main.ts`
+- **Question**: Currently, all apps will share the root `.env` file. What problems could arise from this? For example, how do we manage different database connections for testing vs. production? What is the best practice for managing environment variables in a NestJS monorepo with multiple apps? Should each app have its own `.env` file?
 
-1.  Using the Nest CLI, generate a new service named `test-injection` inside the `kimP-Initiator` application.
-    ```bash
-    nest generate service initiator/test-injection --project=kim-p-initiator
-    ```
-2.  This will create `apps/kim-p-initiator/src/initiator/test-injection.service.ts`.
+### 3. Distributed Error Handling & State Consistency
 
-### Step 4: Inject All Major Core Services
+- **File to Review**: `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`, `packages/kimp-core/src/utils/handler/error-handler.service.ts`
+- **Question**: Consider a scenario where the `Initiator` successfully completes its trade, but the `Finalizer` repeatedly fails to complete the rebalance trade. The `arbitrage_cycle` status would be stuck in `REBALANCING_IN_PROGRESS`. How should we handle this? Should we add a `retry_count` column to the `arbitrage_cycles` table? What is the concept of a "Dead Letter Queue" in this context and how would we implement a simplified version?
 
-1.  Open the newly created `test-injection.service.ts`.
-2.  In its `constructor`, inject all the major public services from our `kimp-core` library. This is the crucial test to see if NestJS's Dependency Injection can resolve everything.
+### 4. Centralized Logging and Tracing
 
-    **Example Constructor:**
+- **Files to Review**: All services that use `@nestjs/common`'s `Logger`.
+- **Question**: Logs for a single arbitrage cycle will be spread across `kimP-Initiator` and `kimP-Finalizer`. How can we trace the entire lifecycle of a single trade using its `cycle_id`? What changes are needed in our `logging.service.ts` to ensure every log message related to a cycle automatically includes the `cycle_id` for easy filtering and debugging in a real production environment (like Datadog or Sentry)? Explain the concept of Correlation ID (in this case, `cycle_id`) in logging.
 
-    ```typescript
-    import { Injectable, Logger } from '@nestjs/common';
-    import {
-      ExchangeService,
-      ArbitrageRecordService,
-      PortfolioManagerService,
-      InvestmentConfigService,
-      TelegramService,
-      FeeCalculatorService,
-    } from '@app/kimp-core';
+### 5. Dependency Management
 
-    @Injectable()
-    export class TestInjectionService {
-      private readonly logger = new Logger(TestInjectionService.name);
-
-      constructor(
-        private readonly exchangeService: ExchangeService,
-        private readonly arbitrageRecordService: ArbitrageRecordService,
-        private readonly portfolioManagerService: PortfolioManagerService,
-        private readonly investmentConfigService: InvestmentConfigService,
-        private readonly telegramService: TelegramService,
-        private readonly feeCalculatorService: FeeCalculatorService,
-      ) {
-        this.logger.log('All core services have been successfully injected!');
-      }
-    }
-    ```
-
-### Step 5: Provide the Test Service
-
-1.  Go back to `apps/kim-p-initiator/src/kim-p-initiator.module.ts`.
-2.  Add the new `TestInjectionService` to the `providers` array of the `KimPInitiatorModule`.
-
-## Verification
-
-- **Primary Goal**: The `kimP-Initiator` application must start without any errors.
-- **Build Test**: Run `yarn build kim-p-initiator`. It must complete without errors.
-- **Runtime Test**: Run `yarn start:dev kim-p-initiator`.
-- **Success Condition**: The application must start successfully, and you should see the log message "All core services have been successfully injected!" in the console. This proves that the library is fully functional and integrated.
+- **File to Review**: Root `package.json` and `packages/kimp-core/package.json`
+- **Question**: All dependencies are currently in the root `package.json`. Is this the correct approach for a monorepo? Explain the concept of workspace dependencies and how it could improve our project structure. For instance, should `axios` be a dependency of `kimp-core` instead of the root?
