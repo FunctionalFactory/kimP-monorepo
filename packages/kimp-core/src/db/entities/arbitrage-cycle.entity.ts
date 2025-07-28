@@ -12,6 +12,8 @@ import { Trade } from './trade.entity';
 export type ArbitrageCycleStatus =
   | 'STARTED'
   | 'INITIAL_TRADE_COMPLETED'
+  | 'AWAITING_REBALANCE'
+  | 'REBALANCING_IN_PROGRESS'
   | 'REBALANCE_TRADE_COMPLETED'
   | 'COMPLETED'
   | 'FAILED';
@@ -32,6 +34,8 @@ export class ArbitrageCycle {
     enum: [
       'STARTED',
       'INITIAL_TRADE_COMPLETED',
+      'AWAITING_REBALANCE',
+      'REBALANCING_IN_PROGRESS',
       'REBALANCE_TRADE_COMPLETED',
       'COMPLETED',
       'FAILED',

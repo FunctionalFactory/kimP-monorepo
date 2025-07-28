@@ -1,76 +1,78 @@
-# Mission Briefing: Phase 1 Final Review - `kimp-core` Library Integration Test
+# Mission Briefing: Phase 2, Step 1 - Implement Database Concurrency Control
 
 ## Overall Goal
 
-- To verify that the newly created `kimp-core` library and all its modules (`DatabaseModule`, `ExchangeModule`, `UtilsModule`, etc.) can be successfully imported and used by a host application (`kimP-Initiator`) within the monorepo.
-- This test will confirm that all dependencies are correctly resolved and the library is ready for production use.
+- To prevent a critical race condition where multiple `kimP-Finalizer` instances could process the same arbitrage cycle simultaneously.
+- We will achieve this by implementing a pessimistic lock within a database transaction when fetching a pending cycle.
 
 ## Current Branch
 
-- Ensure all work is done on the `test/core-library-integration` branch.
+- Ensure all work is done on the `feature/db-concurrency-lock` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Prepare the Testbed Application
+### Step 1: Modify `ArbitrageRecordService`
 
-1.  We will use `kimP-Initiator` as our testbed.
-2.  Open its main module file: `apps/kim-p-initiator/src/kim-p-initiator.module.ts`.
+1.  Open the file: `packages/kimp-core/src/db/arbitrage-record.service.ts`.
+2.  We need a new method that safely finds the next available cycle and immediately locks it to prevent other processes from accessing it.
+3.  Create a new public async method named `findAndLockNextCycle`.
 
-### Step 2: Import the Core Library
+### Step 2: Implement Pessimistic Locking
 
-1.  In `kim-p-initiator.module.ts`, add `KimpCoreModule` from `@app/kimp-core` to the `imports` array. This is the primary integration step.
+1.  The `findAndLockNextCycle` method must use TypeORM's `manager.transaction` to ensure the entire operation is atomic.
+2.  Inside the transaction, use the query builder to find the oldest cycle with the status `AWAITING_REBALANCE`.
+3.  Crucially, apply a pessimistic write lock using `.setLock('pessimistic_write')`. This will lock the selected row until the transaction is complete.
+4.  If a cycle is found, immediately update its status to `REBALANCING_IN_PROGRESS` within the same transaction.
+5.  Return the locked and updated cycle object. If no cycle is found, return `null`.
 
-### Step 3: Create a Test Injection Service
+### Code Example to Follow:
 
-1.  Using the Nest CLI, generate a new service named `test-injection` inside the `kimP-Initiator` application.
-    ```bash
-    nest generate service initiator/test-injection --project=kim-p-initiator
-    ```
-2.  This will create `apps/kim-p-initiator/src/initiator/test-injection.service.ts`.
+Please implement the new method in `arbitrage-record.service.ts` similar to the following structure:
 
-### Step 4: Inject All Major Core Services
+```typescript
+// packages/kimp-core/src/db/arbitrage-record.service.ts
 
-1.  Open the newly created `test-injection.service.ts`.
-2.  In its `constructor`, inject all the major public services from our `kimp-core` library. This is the crucial test to see if NestJS's Dependency Injection can resolve everything.
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ArbitrageCycle, ArbitrageCycleStatus } from './entities/arbitrage-cycle.entity';
+import { Trade } from './entities/trade.entity';
 
-    **Example Constructor:**
+@Injectable()
+export class ArbitrageRecordService {
+  // ... existing constructor and other methods
 
-    ```typescript
-    import { Injectable, Logger } from '@nestjs/common';
-    import {
-      ExchangeService,
-      ArbitrageRecordService,
-      PortfolioManagerService,
-      InvestmentConfigService,
-      TelegramService,
-      FeeCalculatorService,
-    } from '@app/kimp-core';
+  public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
+    return this.arbitrageCycleRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        // 1. Find the oldest pending cycle and lock the row for writing
+        const cycle = await transactionalEntityManager
+          .createQueryBuilder(ArbitrageCycle, 'cycle')
+          .setLock('pessimistic_write')
+          .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
+          .orderBy('cycle.created_at', 'ASC')
+          .getOne();
 
-    @Injectable()
-    export class TestInjectionService {
-      private readonly logger = new Logger(TestInjectionService.name);
+        // 2. If no cycle is found, return null
+        if (!cycle) {
+          return null;
+        }
 
-      constructor(
-        private readonly exchangeService: ExchangeService,
-        private readonly arbitrageRecordService: ArbitrageRecordService,
-        private readonly portfolioManagerService: PortfolioManagerService,
-        private readonly investmentConfigService: InvestmentConfigService,
-        private readonly telegramService: TelegramService,
-        private readonly feeCalculatorService: FeeCalculatorService,
-      ) {
-        this.logger.log('All core services have been successfully injected!');
-      }
-    }
-    ```
+        // 3. Immediately update the status to lock it logically
+        cycle.status = 'REBALANCING_IN_PROGRESS';
+        await transactionalEntityManager.save(cycle);
 
-### Step 5: Provide the Test Service
+        this.logger.log(`Locked and updated cycle ${cycle.id} to REBALANCING_IN_PROGRESS`);
 
-1.  Go back to `apps/kim-p-initiator/src/kim-p-initiator.module.ts`.
-2.  Add the new `TestInjectionService` to the `providers` array of the `KimPInitiatorModule`.
+        // 4. Return the locked cycle
+        return cycle;
+      },
+    );
+  }
 
+  // ... other methods
+}
 ## Verification
 
-- **Primary Goal**: The `kimP-Initiator` application must start without any errors.
-- **Build Test**: Run `yarn build kim-p-initiator`. It must complete without errors.
-- **Runtime Test**: Run `yarn start:dev kim-p-initiator`.
-- **Success Condition**: The application must start successfully, and you should see the log message "All core services have been successfully injected!" in the console. This proves that the library is fully functional and integrated.
+- After the AI completes the task, run `yarn build kimp-core`. It must complete without errors.
+```

@@ -219,4 +219,39 @@ export class ArbitrageRecordService {
       relations: ['trades'],
     });
   }
+
+  /**
+   * 다음 대기 중인 사이클을 찾아서 즉시 잠금 처리합니다.
+   * 여러 Finalizer 인스턴스 간의 Race Condition을 방지합니다.
+   */
+  public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
+    return this.arbitrageCycleRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        // 1. 가장 오래된 대기 중인 사이클을 찾고 쓰기 잠금을 설정
+        const cycle = await transactionalEntityManager
+          .createQueryBuilder(ArbitrageCycle, 'cycle')
+          .setLock('pessimistic_write')
+          .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
+          .orderBy('cycle.startTime', 'ASC')
+          .getOne();
+
+        // 2. 사이클을 찾지 못한 경우 null 반환
+        if (!cycle) {
+          this.logger.debug('No pending cycles found for rebalancing');
+          return null;
+        }
+
+        // 3. 즉시 상태를 REBALANCING_IN_PROGRESS로 업데이트하여 논리적으로 잠금
+        cycle.status = 'REBALANCING_IN_PROGRESS';
+        await transactionalEntityManager.save(cycle);
+
+        this.logger.log(
+          `Locked and updated cycle ${cycle.id} to REBALANCING_IN_PROGRESS`,
+        );
+
+        // 4. 잠긴 사이클 반환
+        return cycle;
+      },
+    );
+  }
 }
