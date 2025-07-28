@@ -1,7 +1,7 @@
 {
-  "name": "@kim-p-monorepo/kimp-core",
+  "name": "@kim-p-monorepo/kim-p-initiator",
   "version": "0.0.1",
-  "description": "Core library for KimP monorepo",
+  "description": "KimP Initiator Application",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -21,15 +21,11 @@
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.1.1",
-    "@nestjs/typeorm": "^10.0.1",
-    "typeorm": "^0.3.17",
-    "mysql2": "^3.6.0",
-    "axios": "^1.6.0",
-    "jsonwebtoken": "^9.0.2",
-    "uuid": "^9.0.1",
-    "dotenv": "^16.3.1",
-    "@nestjs/schedule": "^4.0.0"
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@app/kimp-core": "workspace:*",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
@@ -39,8 +35,6 @@
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@types/supertest": "^2.0.12",
-    "@types/jsonwebtoken": "^9.0.5",
-    "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",

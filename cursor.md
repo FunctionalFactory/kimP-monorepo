@@ -1,76 +1,66 @@
-# Mission Briefing: Implement Centralized Logging with Correlation ID
+# Mission Briefing: Refactor Dependency Management
 
 ## Overall Goal
 
-- To enhance our logging system to automatically include a `cycle_id` in all log messages related to a specific arbitrage cycle.
-- This will allow us to easily trace the entire lifecycle of a single transaction across our distributed services (`Initiator` and `Finalizer`).
+- To refactor our monorepo's dependency management for better organization and optimization.
+- We will move dependencies from the root `package.json` to the specific application or library that actually requires them. This improves encapsulation and can reduce final bundle sizes.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/centralized-logging` branch.
+- Ensure all work is done on the `refactor/dependency-management` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Enhance `LoggingService` with `AsyncLocalStorage`
+### Step 1: Analyze Root `package.json`
 
-1.  Open the file: `packages/kimp-core/src/utils/handler/logging.service.ts`.
-2.  Import `AsyncLocalStorage` from the `async_hooks` built-in Node.js module.
-3.  Create a `static` private property `asyncLocalStorage` inside the `LoggingService`. This will store the context for a specific asynchronous operation.
-4.  Create a `static` public method `run(context, callback)` that will be used to establish a new asynchronous context.
-5.  Modify the `formatMessage` method to automatically retrieve the `cycleId` from `asyncLocalStorage` and prepend it to the log message if it exists.
+- Review the `dependencies` and `devDependencies` in the root `package.json` file. We will be moving most of the `dependencies` to the relevant sub-packages.
 
-### Step 2: Create a NestJS Middleware for Context Setting
+### Step 2: Relocate Dependencies to `kimp-core`
 
-1.  Create a new file `logging.middleware.ts` inside `packages/kimp-core/src/utils/middleware/`.
-2.  Implement a NestJS `Middleware` that extracts a `cycle-id` from the incoming HTTP request headers (or body).
-3.  Use the `LoggingService.run()` method to wrap the request processing, setting the extracted `cycle_id` into the `AsyncLocalStorage` context. This will make the `cycle_id` available to all services called during that request.
+- Open `packages/kimp-core/package.json`.
+- Move the following dependencies from the root `package.json` to the `dependencies` section of `packages/kimp-core/package.json`, as they are core to its functionality:
+  - `@nestjs/config`
+  - `@nestjs/typeorm`
+  - `typeorm`
+  - `mysql2`
+  - `axios`
+  - `jsonwebtoken`
+  - `uuid`
+  - `dotenv`
 
-### Step 3: Implement Context Propagation in Services
+### Step 3: Relocate Dependencies to Applications
 
-1.  **For `kimP-Initiator`**: When a new arbitrage opportunity is detected and a new cycle is created, the `Initiator` must start the logging context.
-    - In `trade-executor.service.ts`, before executing the trade, wrap the entire logic within `LoggingService.run({ cycleId: newCycle.id }, async () => { ... })`.
-2.  **For `kimP-Finalizer`**: When the scheduler picks up a pending cycle, the `Finalizer` must also start the logging context.
-    - In `cycle-finder.service.ts` (or the scheduler itself), when a cycle is fetched from the DB to be processed, wrap the processing logic within `LoggingService.run({ cycleId: cycle.id }, async () => { ... })`.
+- For each application, analyze which specific dependencies it uses and move them accordingly. For now, we will move `@nestjs/schedule` as an example.
+- Open `apps/kim-p-finalizer/package.json`.
+- Move the `@nestjs/schedule` dependency from the root `package.json` to the `dependencies` section here, as only the Finalizer uses cron jobs.
 
-### Code Example to Follow for `LoggingService`:
+### Step 4: Define Workspace Dependencies
 
-```typescript
-// packages/kimp-core/src/utils/handler/logging.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { AsyncLocalStorage } from 'async_hooks';
-
-interface LoggingContext {
-  cycleId?: string;
-  // other context properties can be added here
-}
-
-@Injectable()
-export class LoggingService {
-  private readonly logger = new Logger(LoggingService.name);
-  private static asyncLocalStorage = new AsyncLocalStorage<LoggingContext>();
-
-  public static run<T>(context: LoggingContext, callback: () => T): T {
-    return this.asyncLocalStorage.run(context, callback);
+- Open the `package.json` file for each of the three applications (`kimP-Feeder`, `kimP-Initiator`, `kimP-Finalizer`).
+- Add a dependency to our core library using the `workspace:*` protocol. This tells Yarn/NPM to use the local version from our `packages` folder.
+  ```json
+  "dependencies": {
+    "@app/kimp-core": "workspace:*"
   }
+  ```
+  Make sure to add this to all three application package.json files.
 
-  private formatMessage(level: string, message: string): string {
-    const context = LoggingService.asyncLocalStorage.getStore();
-    const cycleId = context?.cycleId;
-    const correlationId = cycleId ? `[CYCLE:${cycleId}]` : '';
+Step 5: Clean Up Root package.json
+After moving the dependencies, the dependencies section in the root package.json should be much smaller. It should only contain packages truly shared by all apps at runtime (like @nestjs/common, reflect-metadata, rxjs).
 
-    return `${correlationId} [${level}] ${message}`;
-  }
-
-  log(message: string) {
-    this.logger.log(this.formatMessage('INFO', message));
-  }
-  // Implement other methods like error, warn, debug similarly
-}
+The devDependencies section (for tools like TypeScript, Jest, ESLint, Prettier) should remain in the root package.json.
 
 Verification
-After implementation, run the applications.
+After modifying all package.json files, run yarn install from the root directory. This will update node_modules according to the new structure.
 
-When Initiator creates a new cycle, all subsequent logs related to that cycle (even from different services) should be prefixed with [CYCLE:...].
+After installation, run a build for all projects to ensure dependencies are correctly resolved:
 
-When Finalizer processes a cycle, its logs should also be prefixed with the correct [CYCLE:...] ID.
-```
+yarn build kimp-core
+
+yarn build kim-p-feeder
+
+yarn build kim-p-initiator
+
+yarn build kim-p-finalizer
+
+All builds must complete without any errors.
