@@ -1,78 +1,89 @@
-# Mission Briefing: Phase 2, Step 1 - Implement Database Concurrency Control
+# Mission Briefing: Implement Lock Timeout for "Stuck" Cycle Prevention
 
 ## Overall Goal
 
-- To prevent a critical race condition where multiple `kimP-Finalizer` instances could process the same arbitrage cycle simultaneously.
-- We will achieve this by implementing a pessimistic lock within a database transaction when fetching a pending cycle.
+- To resolve the "Stuck" Cycles issue identified in our architecture review.
+- We will implement a timeout mechanism so that if a `Finalizer` instance crashes while processing a cycle, the lock is eventually released, allowing another instance to pick up the job.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/db-concurrency-lock` branch.
+- Ensure all work is done on the `feature/db-lock-timeout` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Modify `ArbitrageRecordService`
+### Step 1: Update the `ArbitrageCycle` Entity
+
+1.  Open the file: `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`.
+2.  Add a new column `lockedAt` to store the timestamp when a lock is acquired. This should be a nullable timestamp.
+    ```typescript
+    @Column({ type: 'timestamp', nullable: true })
+    lockedAt: Date;
+    ```
+
+### Step 2: Enhance the `findAndLockNextCycle` Method
 
 1.  Open the file: `packages/kimp-core/src/db/arbitrage-record.service.ts`.
-2.  We need a new method that safely finds the next available cycle and immediately locks it to prevent other processes from accessing it.
-3.  Create a new public async method named `findAndLockNextCycle`.
-
-### Step 2: Implement Pessimistic Locking
-
-1.  The `findAndLockNextCycle` method must use TypeORM's `manager.transaction` to ensure the entire operation is atomic.
-2.  Inside the transaction, use the query builder to find the oldest cycle with the status `AWAITING_REBALANCE`.
-3.  Crucially, apply a pessimistic write lock using `.setLock('pessimistic_write')`. This will lock the selected row until the transaction is complete.
-4.  If a cycle is found, immediately update its status to `REBALANCING_IN_PROGRESS` within the same transaction.
-5.  Return the locked and updated cycle object. If no cycle is found, return `null`.
+2.  Modify the `findAndLockNextCycle` method to incorporate the timeout logic.
+3.  **Before** finding a new cycle, add a query that **resets the status of any timed-out cycles**.
+    - An `UPDATE` query should target cycles where the `status` is `REBALANCING_IN_PROGRESS`.
+    - The condition should check if `lockedAt` is older than a specific timeout period (e.g., 5 minutes ago).
+    - If a cycle is timed-out, its `status` should be reset to `AWAITING_REBALANCE` and `lockedAt` should be set to `null`.
+4.  When a cycle is successfully locked, **set the `lockedAt` column to the current timestamp** before saving it.
 
 ### Code Example to Follow:
 
-Please implement the new method in `arbitrage-record.service.ts` similar to the following structure:
+Please refactor the `findAndLockNextCycle` method in `arbitrage-record.service.ts` to match this logic:
 
 ```typescript
 // packages/kimp-core/src/db/arbitrage-record.service.ts
 
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ArbitrageCycle, ArbitrageCycleStatus } from './entities/arbitrage-cycle.entity';
-import { Trade } from './entities/trade.entity';
+public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
+  const LOCK_TIMEOUT_MINUTES = 5;
 
-@Injectable()
-export class ArbitrageRecordService {
-  // ... existing constructor and other methods
+  return this.arbitrageCycleRepository.manager.transaction(
+    async (transactionalEntityManager) => {
+      // 1. Reset any cycles that have timed out
+      const timeout = new Date(Date.now() - LOCK_TIMEOUT_MINUTES * 60 * 1000);
+      await transactionalEntityManager
+        .createQueryBuilder()
+        .update(ArbitrageCycle)
+        .set({
+          status: 'AWAITING_REBALANCE',
+          lockedAt: null,
+          // Optionally, you can add a note to errorDetails here
+        })
+        .where('status = :status', { status: 'REBALANCING_IN_PROGRESS' })
+        .andWhere('lockedAt < :timeout', { timeout })
+        .execute();
 
-  public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
-    return this.arbitrageCycleRepository.manager.transaction(
-      async (transactionalEntityManager) => {
-        // 1. Find the oldest pending cycle and lock the row for writing
-        const cycle = await transactionalEntityManager
-          .createQueryBuilder(ArbitrageCycle, 'cycle')
-          .setLock('pessimistic_write')
-          .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
-          .orderBy('cycle.created_at', 'ASC')
-          .getOne();
+      // 2. Find the oldest pending cycle and lock the row for writing
+      const cycle = await transactionalEntityManager
+        .createQueryBuilder(ArbitrageCycle, 'cycle')
+        .setLock('pessimistic_write')
+        .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
+        .orderBy('cycle.created_at', 'ASC')
+        .getOne();
 
-        // 2. If no cycle is found, return null
-        if (!cycle) {
-          return null;
-        }
+      // 3. If no cycle is found, return null
+      if (!cycle) {
+        return null;
+      }
 
-        // 3. Immediately update the status to lock it logically
-        cycle.status = 'REBALANCING_IN_PROGRESS';
-        await transactionalEntityManager.save(cycle);
+      // 4. Update status and set the lock timestamp
+      cycle.status = 'REBALANCING_IN_PROGRESS';
+      cycle.lockedAt = new Date(); // Set the current time as the lock time
+      await transactionalEntityManager.save(cycle);
 
-        this.logger.log(`Locked and updated cycle ${cycle.id} to REBALANCING_IN_PROGRESS`);
+      this.logger.log(`Locked cycle ${cycle.id} with a ${LOCK_TIMEOUT_MINUTES}-minute timeout.`);
 
-        // 4. Return the locked cycle
-        return cycle;
-      },
-    );
-  }
-
-  // ... other methods
+      // 5. Return the locked cycle
+      return cycle;
+    },
+  );
 }
-## Verification
-
-- After the AI completes the task, run `yarn build kimp-core`. It must complete without errors.
 ```
+
+Verification
+After the AI completes the task, run yarn build kimp-core. It must complete without errors.
+
+Review the code to ensure the timeout logic is correctly implemented as requested.

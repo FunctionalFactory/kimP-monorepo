@@ -99,6 +99,14 @@ export class ArbitrageCycle {
   })
   errorDetails: string;
 
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    name: 'locked_at',
+    comment: '잠금 획득 시간 (타임아웃 체크용)',
+  })
+  lockedAt: Date;
+
   // 관계 설정
   @OneToMany(() => Trade, (trade) => trade.cycle)
   trades: Trade[];
