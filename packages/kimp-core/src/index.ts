@@ -23,3 +23,13 @@ export * from './exchange/binance/binance.module';
 export * from './exchange/binance/binance.service';
 export * from './exchange/simulation/simulation.module';
 export * from './exchange/simulation/simulation-exchange.service';
+
+// Utils exports
+export * from './utils/utils.module';
+export * from './utils/calculator/fee-calculator.service';
+export * from './utils/calculator/slippage-calculator.service';
+export * from './utils/external/telegram.service';
+export * from './utils/handler/error-handler.service';
+export * from './utils/handler/logging.service';
+export * from './utils/service/withdrawal-constraint.service';
+export * from './utils/service/portfolio-manager.service';
