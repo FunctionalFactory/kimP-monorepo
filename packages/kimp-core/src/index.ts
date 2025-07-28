@@ -31,6 +31,7 @@ export * from './utils/calculator/slippage-calculator.service';
 export * from './utils/external/telegram.service';
 export * from './utils/handler/error-handler.service';
 export * from './utils/handler/logging.service';
+export * from './utils/middleware/logging.middleware';
 export * from './utils/service/withdrawal-constraint.service';
 export * from './utils/service/portfolio-manager.service';
 export * from './utils/service/retry-manager.service';

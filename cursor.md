@@ -1,59 +1,76 @@
-# Mission Briefing: Implement Retry and Dead Letter Queue for Error Handling
+# Mission Briefing: Implement Centralized Logging with Correlation ID
 
 ## Overall Goal
 
-- To make the system resilient against temporary, recoverable errors (e.g., exchange API errors, network issues).
-- We will implement a retry mechanism with exponential backoff for failed cycles.
-- Cycles that fail repeatedly will be moved to a "Dead Letter Queue" for manual inspection.
+- To enhance our logging system to automatically include a `cycle_id` in all log messages related to a specific arbitrage cycle.
+- This will allow us to easily trace the entire lifecycle of a single transaction across our distributed services (`Initiator` and `Finalizer`).
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/error-handling-retry` branch.
+- Ensure all work is done on the `feature/centralized-logging` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Enhance the `ArbitrageCycle` Entity
+### Step 1: Enhance `LoggingService` with `AsyncLocalStorage`
 
-1.  Open `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`.
-2.  Add the following new columns to the entity to track retry state:
-    - `retryCount` (type: `int`, default: 0)
-    - `lastRetryAt` (type: `timestamp`, nullable: true)
-    - `failureReason` (type: `text`, nullable: true)
-3.  Add new statuses to the `ArbitrageCycleStatus` type: `'AWAITING_RETRY'` and `'DEAD_LETTER'`.
+1.  Open the file: `packages/kimp-core/src/utils/handler/logging.service.ts`.
+2.  Import `AsyncLocalStorage` from the `async_hooks` built-in Node.js module.
+3.  Create a `static` private property `asyncLocalStorage` inside the `LoggingService`. This will store the context for a specific asynchronous operation.
+4.  Create a `static` public method `run(context, callback)` that will be used to establish a new asynchronous context.
+5.  Modify the `formatMessage` method to automatically retrieve the `cycleId` from `asyncLocalStorage` and prepend it to the log message if it exists.
 
-### Step 2: Create a New `RetryManagerService`
+### Step 2: Create a NestJS Middleware for Context Setting
 
-1.  Create a new file `retry-manager.service.ts` inside `packages/kimp-core/src/utils/service/`.
-2.  Create a new `RetryManagerService` class inside this file.
-3.  This service should be provided by the `UtilsModule`.
-4.  Implement a public method `handleCycleFailure(cycle: ArbitrageCycle, error: Error)`.
+1.  Create a new file `logging.middleware.ts` inside `packages/kimp-core/src/utils/middleware/`.
+2.  Implement a NestJS `Middleware` that extracts a `cycle-id` from the incoming HTTP request headers (or body).
+3.  Use the `LoggingService.run()` method to wrap the request processing, setting the extracted `cycle_id` into the `AsyncLocalStorage` context. This will make the `cycle_id` available to all services called during that request.
 
-### Step 3: Implement the Failure Handling Logic
+### Step 3: Implement Context Propagation in Services
 
-1.  Inside the `handleCycleFailure` method, implement the following logic:
-    - Increment the `cycle.retryCount`.
-    - Set the `cycle.failureReason` to the new error message.
-    - Set `cycle.lastRetryAt` to the current timestamp.
-    - Define a `MAX_RETRIES` constant (e.g., 5).
-    - **If `cycle.retryCount` >= `MAX_RETRIES`:**
-      - Set the `cycle.status` to `'DEAD_LETTER'`.
-      - Log a critical error indicating that the cycle has been moved to the dead letter queue.
-      - (Optional but recommended) Use `TelegramService` to send an alert to the administrator.
-    - **Else (if retries are remaining):**
-      - Set the `cycle.status` to `'AWAITING_RETRY'`.
-      - Calculate the next retry time using exponential backoff (e.g., delay = `10 * (2 ** cycle.retryCount)` minutes).
-      - You will need to create a `nextRetryAt` column in the entity for this.
-    - Save the updated cycle entity to the database using `ArbitrageRecordService`.
+1.  **For `kimP-Initiator`**: When a new arbitrage opportunity is detected and a new cycle is created, the `Initiator` must start the logging context.
+    - In `trade-executor.service.ts`, before executing the trade, wrap the entire logic within `LoggingService.run({ cycleId: newCycle.id }, async () => { ... })`.
+2.  **For `kimP-Finalizer`**: When the scheduler picks up a pending cycle, the `Finalizer` must also start the logging context.
+    - In `cycle-finder.service.ts` (or the scheduler itself), when a cycle is fetched from the DB to be processed, wrap the processing logic within `LoggingService.run({ cycleId: cycle.id }, async () => { ... })`.
 
-### Step 4: Create a Scheduler to Process Retries
+### Code Example to Follow for `LoggingService`:
 
-1.  This logic should be placed in the `kimP-Finalizer` application.
-2.  In `apps/kim-p-finalizer/src/scheduler/cycle.scheduler.ts`, add a new cron job that runs every minute.
-3.  This cron job will call a new method in `RetryManagerService` (e.g., `processPendingRetries`).
-4.  The `processPendingRetries` method will query the database for cycles where `status` is `'AWAITING_RETRY'` and `nextRetryAt` is in the past.
-5.  For each found cycle, it should change its status back to `AWAITING_REBALANCE` so that the main `Finalizer` logic can pick it up and try again.
+```typescript
+// packages/kimp-core/src/utils/handler/logging.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { AsyncLocalStorage } from 'async_hooks';
 
-## Verification
+interface LoggingContext {
+  cycleId?: string;
+  // other context properties can be added here
+}
 
-- After the AI completes the task, run `yarn build kimp-core` and `yarn build kim-p-finalizer`. They must complete without errors.
-- Review the code to ensure the retry and dead letter logic is implemented correctly in the new service and entity.
+@Injectable()
+export class LoggingService {
+  private readonly logger = new Logger(LoggingService.name);
+  private static asyncLocalStorage = new AsyncLocalStorage<LoggingContext>();
+
+  public static run<T>(context: LoggingContext, callback: () => T): T {
+    return this.asyncLocalStorage.run(context, callback);
+  }
+
+  private formatMessage(level: string, message: string): string {
+    const context = LoggingService.asyncLocalStorage.getStore();
+    const cycleId = context?.cycleId;
+    const correlationId = cycleId ? `[CYCLE:${cycleId}]` : '';
+
+    return `${correlationId} [${level}] ${message}`;
+  }
+
+  log(message: string) {
+    this.logger.log(this.formatMessage('INFO', message));
+  }
+  // Implement other methods like error, warn, debug similarly
+}
+
+Verification
+After implementation, run the applications.
+
+When Initiator creates a new cycle, all subsequent logs related to that cycle (even from different services) should be prefixed with [CYCLE:...].
+
+When Finalizer processes a cycle, its logs should also be prefixed with the correct [CYCLE:...] ID.
+```
