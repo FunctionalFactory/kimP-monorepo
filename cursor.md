@@ -1,41 +1,46 @@
-# Mission Briefing: Unit Testing for `kimp-core` Exchange & Utility Services
+# Mission Briefing: Phase 2 - Build the `kimP-Feeder` Application
 
 ## Overall Goal
 
-- To write unit tests for the remaining critical services within the `kimp-core` library: the main `ExchangeService` and the calculation services.
-- This will ensure that our core business logic for exchange interaction and profit calculation is reliable and correct.
+- To build our first microservice, `kimP-Feeder`.
+- This application's sole responsibility is to connect to exchange WebSockets, receive real-time price data, and publish it to a Redis Pub/Sub channel for other services to consume.
 
 ## Current Branch
 
-- Ensure all work is done on the `test/unit-kimp-core-exchange-utils` branch.
+- Ensure all work is done on the `feature/build-feeder-app` branch.
 
 ## Step-by-Step Instructions for AI
 
-### 1. Test `ExchangeService` (Facade Pattern)
+### Step 1: Migrate and Refactor `PriceFeedService`
 
-1.  Create a new test file: `packages/kimp-core/src/exchange/exchange.service.spec.ts`.
-2.  **Mock Dependencies**: The purpose of `ExchangeService` is to delegate tasks to the correct underlying service (`UpbitService` or `BinanceService`). We need to mock `UpbitService` and `BinanceService` to verify this delegation works correctly.
-3.  **Write Test Cases**:
-    - Create a test case for `getBalances`. It should verify that `exchangeService.getBalances('upbit')` calls the `getBalances` method on the mocked `upbitService`, and NOT on the `binanceService`.
-    - Create a similar test case for `createOrder`, verifying that `exchangeService.createOrder('binance', ...)` correctly calls the method on the mocked `binanceService`.
+1.  Move the `price-feed.service.ts` file from `apps/kim-p-legacy/src/marketdata/` to `apps/kim-p-feeder/src/price-feed/`.
+2.  Move the `marketdata.module.ts` to the same directory. Rename the module to `PriceFeedModule` and the class to `PriceFeedModule`.
+3.  Refactor `price-feed.service.ts`. It no longer needs to use `Subject` or `BehaviorSubject`. Its only job is to receive data and pass it to a new `RedisPublisherService`.
+4.  Remove dependencies on any services that are not directly related to fetching prices (like `ArbitrageFlowManagerService`). The service should now only depend on `ConfigService` and `ExchangeService` (for initial data like order books).
 
-### 2. Test `FeeCalculatorService` (Pure Calculation)
+### Step 2: Create `RedisPublisherService`
 
-1.  Create a new test file: `packages/kimp-core/src/utils/calculator/fee-calculator.service.spec.ts`.
-2.  This service has no external dependencies, so we can test its calculation logic directly.
-3.  **Write Test Cases**:
-    - Create a test for a `HIGH_PREMIUM_SELL_UPBIT` scenario. Provide fixed inputs (e.g., amount: 100, upbitPrice: 710, binancePrice: 0.5, rate: 1400) and assert that the calculated `netProfit` is the expected value.
-    - Create another test for a `LOW_PREMIUM_SELL_BINANCE` scenario with different inputs and assert the correctness of the calculation.
+1.  We need a way to connect to Redis. Add a Redis client library like `ioredis` to the root `package.json` dev dependencies.
+2.  Create a new `redis` directory inside `apps/kim-p-feeder/src/`.
+3.  Create a new file `redis-publisher.service.ts` in this directory.
+4.  Implement a service that connects to a Redis server (connection details from `.env`).
+5.  Create a public method `publishPriceUpdate(data: PriceUpdateData)` that takes price data and publishes it as a JSON string to a specific Redis channel (e.g., `TICKER_UPDATES`).
+6.  Create a `RedisModule` to provide and export this service.
 
-### 3. Test `SlippageCalculatorService` (Pure Calculation)
+### Step 3: Connect the Services
 
-1.  Create a new test file: `packages/kimp-core/src/utils/calculator/slippage-calculator.service.spec.ts`.
-2.  **Write Test Cases**:
-    - Create a mock `OrderBook` object with sample bid/ask levels.
-    - Call the `calculate` method with a specific `investmentAmount`.
-    - Assert that the returned `averagePrice` and `slippagePercent` match the manually calculated, expected values.
+1.  Inject the new `RedisPublisherService` into `PriceFeedService`.
+2.  In `PriceFeedService`, whenever a new price update is received from an exchange WebSocket, call the `redisPublisherService.publishPriceUpdate()` method with the data.
+
+### Step 4: Assemble the `kimP-Feeder` Application
+
+1.  Open `apps/kim-p-feeder/src/kim-p-feeder.module.ts`.
+2.  Import the `PriceFeedModule` and the `RedisModule`.
+3.  Also, import the `KimpCoreModule` from `@app/kimp-core` because `PriceFeedService` depends on services from it.
 
 ## Verification
 
-- Run the unit tests for the `kimp-core` package from the project's root directory.
-- The command `yarn test packages/kimp-core` should run, and ALL tests, including the previously created database service tests, must pass successfully.
+- After implementation, run `yarn install` to get the new `ioredis` package.
+- Run the application using `yarn start:dev kim-p-feeder`.
+- The application should start without errors and log that it is connected to both exchange WebSockets and the Redis server.
+- Using a Redis client (like `redis-cli`), you should be able to `SUBSCRIBE TICKER_UPDATES` and see a real-time stream of price data being published.
