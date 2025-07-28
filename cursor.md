@@ -1,66 +1,54 @@
-# Mission Briefing: Refactor Dependency Management
+# Mission Briefing: Fix Failing Unit Tests in `ArbitrageRecordService`
 
 ## Overall Goal
 
-- To refactor our monorepo's dependency management for better organization and optimization.
-- We will move dependencies from the root `package.json` to the specific application or library that actually requires them. This improves encapsulation and can reduce final bundle sizes.
+- To fix the failing unit tests in `packages/kimp-core/src/db/arbitrage-record.service.spec.ts`.
+- The tests are failing because the mock for the TypeORM QueryBuilder is incomplete and does not include the `.setLock()` method.
 
 ## Current Branch
 
-- Ensure all work is done on the `refactor/dependency-management` branch.
+- Continue working on the `test/unit-kimp-core-db` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Analyze Root `package.json`
+### 1. Locate the Test File
 
-- Review the `dependencies` and `devDependencies` in the root `package.json` file. We will be moving most of the `dependencies` to the relevant sub-packages.
+- Open the test file: `packages/kimp-core/src/db/arbitrage-record.service.spec.ts`.
 
-### Step 2: Relocate Dependencies to `kimp-core`
+### 2. Update the Mock Query Builder
 
-- Open `packages/kimp-core/package.json`.
-- Move the following dependencies from the root `package.json` to the `dependencies` section of `packages/kimp-core/package.json`, as they are core to its functionality:
-  - `@nestjs/config`
-  - `@nestjs/typeorm`
-  - `typeorm`
-  - `mysql2`
-  - `axios`
-  - `jsonwebtoken`
-  - `uuid`
-  - `dotenv`
+- Find the section where the mock for the `createQueryBuilder` is defined (likely within a `beforeEach` block).
+- The current mock is missing the `.setLock()` method, causing the tests to fail.
+- Update the mock object to be fully chainable and include all methods used by the `findAndLockNextCycle` function: `.setLock()`, `.where()`, `.andWhere()`, `.orderBy()`, `.getOne()`, and `.execute()`.
 
-### Step 3: Relocate Dependencies to Applications
+### Code Example to Follow:
 
-- For each application, analyze which specific dependencies it uses and move them accordingly. For now, we will move `@nestjs/schedule` as an example.
-- Open `apps/kim-p-finalizer/package.json`.
-- Move the `@nestjs/schedule` dependency from the root `package.json` to the `dependencies` section here, as only the Finalizer uses cron jobs.
+Please replace the existing mock query builder definition with the following complete version. This mock teaches the fake query builder how to handle all the required method calls.
 
-### Step 4: Define Workspace Dependencies
+```typescript
+// Inside arbitrage-record.service.spec.ts
 
-- Open the `package.json` file for each of the three applications (`kimP-Feeder`, `kimP-Initiator`, `kimP-Finalizer`).
-- Add a dependency to our core library using the `workspace:*` protocol. This tells Yarn/NPM to use the local version from our `packages` folder.
-  ```json
-  "dependencies": {
-    "@app/kimp-core": "workspace:*"
-  }
-  ```
-  Make sure to add this to all three application package.json files.
+// This mock should be defined within the main `describe` block or `beforeEach`
+const mockQueryBuilder = {
+  setLock: jest.fn().mockReturnThis(), // <-- Add this line
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  getOne: jest.fn().mockResolvedValue(null), // Default behavior
+  execute: jest.fn().mockResolvedValue({ affected: 0 }), // For the UPDATE query
+  set: jest.fn().mockReturnThis(), // For the UPDATE query
+  update: jest.fn().mockReturnThis(), // For the UPDATE query
+};
 
-Step 5: Clean Up Root package.json
-After moving the dependencies, the dependencies section in the root package.json should be much smaller. It should only contain packages truly shared by all apps at runtime (like @nestjs/common, reflect-metadata, rxjs).
+// Ensure the repository and manager mocks use this query builder
+// Example:
+// mockArbitrageCycleRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+// mockEntityManager.createQueryBuilder.mockReturnValue(mockQuery_builder);
 
-The devDependencies section (for tools like TypeScript, Jest, ESLint, Prettier) should remain in the root package.json.
+After updating the mock definition, ensure that each test case (it(...)) properly configures the return value for .getOne() to simulate its specific scenario (e.g., returning a cycle object or returning null).
 
 Verification
-After modifying all package.json files, run yarn install from the root directory. This will update node_modules according to the new structure.
+Run the unit tests again from the project's root directory.
 
-After installation, run a build for all projects to ensure dependencies are correctly resolved:
-
-yarn build kimp-core
-
-yarn build kim-p-feeder
-
-yarn build kim-p-initiator
-
-yarn build kim-p-finalizer
-
-All builds must complete without any errors.
+The command yarn test packages/kimp-core should now pass all tests, including the three previously failing tests for ArbitrageRecordService.
+```
