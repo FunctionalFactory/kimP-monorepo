@@ -219,4 +219,63 @@ export class ArbitrageRecordService {
       relations: ['trades'],
     });
   }
+
+  /**
+   * 다음 대기 중인 사이클을 찾아서 즉시 잠금 처리합니다.
+   * 여러 Finalizer 인스턴스 간의 Race Condition을 방지하고, 타임아웃된 잠금을 자동으로 해제합니다.
+   */
+  public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
+    const LOCK_TIMEOUT_MINUTES = 5;
+
+    return this.arbitrageCycleRepository.manager.transaction(
+      async (transactionalEntityManager) => {
+        // 1. 타임아웃된 사이클들의 잠금을 해제
+        const timeout = new Date(Date.now() - LOCK_TIMEOUT_MINUTES * 60 * 1000);
+        const timeoutResult = await transactionalEntityManager
+          .createQueryBuilder()
+          .update(ArbitrageCycle)
+          .set({
+            status: 'AWAITING_REBALANCE',
+            lockedAt: null,
+            errorDetails: () =>
+              `CONCAT(COALESCE(error_details, ''), '\\n[${new Date().toISOString()}] Lock timeout after ${LOCK_TIMEOUT_MINUTES} minutes')`,
+          })
+          .where('status = :status', { status: 'REBALANCING_IN_PROGRESS' })
+          .andWhere('lockedAt < :timeout', { timeout })
+          .execute();
+
+        if (timeoutResult.affected > 0) {
+          this.logger.warn(
+            `Released ${timeoutResult.affected} timed-out cycle locks (timeout: ${LOCK_TIMEOUT_MINUTES} minutes)`,
+          );
+        }
+
+        // 2. 가장 오래된 대기 중인 사이클을 찾고 쓰기 잠금을 설정
+        const cycle = await transactionalEntityManager
+          .createQueryBuilder(ArbitrageCycle, 'cycle')
+          .setLock('pessimistic_write')
+          .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
+          .orderBy('cycle.startTime', 'ASC')
+          .getOne();
+
+        // 3. 사이클을 찾지 못한 경우 null 반환
+        if (!cycle) {
+          this.logger.debug('No pending cycles found for rebalancing');
+          return null;
+        }
+
+        // 4. 상태를 REBALANCING_IN_PROGRESS로 업데이트하고 잠금 시간 설정
+        cycle.status = 'REBALANCING_IN_PROGRESS';
+        cycle.lockedAt = new Date(); // 현재 시간을 잠금 시간으로 설정
+        await transactionalEntityManager.save(cycle);
+
+        this.logger.log(
+          `Locked cycle ${cycle.id} with a ${LOCK_TIMEOUT_MINUTES}-minute timeout`,
+        );
+
+        // 5. 잠긴 사이클 반환
+        return cycle;
+      },
+    );
+  }
 }

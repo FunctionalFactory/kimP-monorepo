@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AsyncLocalStorage } from 'async_hooks';
 
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -18,9 +19,34 @@ export interface LogContext {
   data?: any;
 }
 
+export interface AsyncLoggingContext {
+  cycleId?: string;
+  sessionId?: string;
+  requestId?: string;
+  userId?: string;
+}
+
 @Injectable()
 export class LoggingService {
   private readonly logger = new Logger(LoggingService.name);
+  private static asyncLocalStorage =
+    new AsyncLocalStorage<AsyncLoggingContext>();
+
+  /**
+   * 비동기 컨텍스트에서 로깅을 실행합니다.
+   * @param context 로깅 컨텍스트
+   * @param callback 실행할 콜백 함수
+   */
+  public static run<T>(context: AsyncLoggingContext, callback: () => T): T {
+    return this.asyncLocalStorage.run(context, callback);
+  }
+
+  /**
+   * 현재 비동기 컨텍스트를 가져옵니다.
+   */
+  public static getContext(): AsyncLoggingContext | undefined {
+    return this.asyncLocalStorage.getStore();
+  }
 
   /**
    * 일관된 형식의 로그 메시지를 생성합니다
@@ -36,6 +62,12 @@ export class LoggingService {
     // 로그 레벨
     parts.push(`[${level}]`);
 
+    // AsyncLocalStorage에서 자동으로 cycleId 추출
+    const asyncContext = LoggingService.getContext();
+    const correlationId = asyncContext?.cycleId
+      ? `[CYCLE:${asyncContext.cycleId}]`
+      : '';
+
     // 컨텍스트 정보
     if (context) {
       if (context.service) parts.push(`[${context.service}]`);
@@ -45,6 +77,11 @@ export class LoggingService {
       if (context.symbol) parts.push(`[${context.symbol.toUpperCase()}]`);
       if (context.marketDirection) parts.push(`[${context.marketDirection}]`);
       if (context.strategyType) parts.push(`[${context.strategyType}]`);
+    }
+
+    // 자동 추출된 correlation ID (컨텍스트에 cycleId가 없는 경우)
+    if (correlationId && (!context || !context.cycleId)) {
+      parts.push(correlationId);
     }
 
     // 메시지

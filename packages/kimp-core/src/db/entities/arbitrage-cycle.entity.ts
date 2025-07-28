@@ -12,9 +12,13 @@ import { Trade } from './trade.entity';
 export type ArbitrageCycleStatus =
   | 'STARTED'
   | 'INITIAL_TRADE_COMPLETED'
+  | 'AWAITING_REBALANCE'
+  | 'REBALANCING_IN_PROGRESS'
   | 'REBALANCE_TRADE_COMPLETED'
   | 'COMPLETED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'AWAITING_RETRY'
+  | 'DEAD_LETTER';
 
 @Entity('arbitrage_cycles')
 export class ArbitrageCycle {
@@ -32,9 +36,13 @@ export class ArbitrageCycle {
     enum: [
       'STARTED',
       'INITIAL_TRADE_COMPLETED',
+      'AWAITING_REBALANCE',
+      'REBALANCING_IN_PROGRESS',
       'REBALANCE_TRADE_COMPLETED',
       'COMPLETED',
       'FAILED',
+      'AWAITING_RETRY',
+      'DEAD_LETTER',
     ],
     default: 'STARTED',
     comment: '사이클 상태',
@@ -94,6 +102,46 @@ export class ArbitrageCycle {
     comment: '오류 상세 정보',
   })
   errorDetails: string;
+
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    name: 'locked_at',
+    comment: '잠금 획득 시간 (타임아웃 체크용)',
+  })
+  lockedAt: Date;
+
+  @Column({
+    type: 'int',
+    default: 0,
+    name: 'retry_count',
+    comment: '재시도 횟수',
+  })
+  retryCount: number;
+
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    name: 'last_retry_at',
+    comment: '마지막 재시도 시간',
+  })
+  lastRetryAt: Date;
+
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    name: 'next_retry_at',
+    comment: '다음 재시도 예정 시간',
+  })
+  nextRetryAt: Date;
+
+  @Column({
+    type: 'text',
+    nullable: true,
+    name: 'failure_reason',
+    comment: '실패 사유',
+  })
+  failureReason: string;
 
   // 관계 설정
   @OneToMany(() => Trade, (trade) => trade.cycle)
