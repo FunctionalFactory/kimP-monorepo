@@ -1,6 +1,5 @@
 // packages/kimp-core/src/utils/utils.module.ts
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../db/database.module';
 import { AppConfigModule } from '../config/config.module';
 
 // Calculator services
@@ -11,15 +10,13 @@ import { SlippageCalculatorService } from './calculator/slippage-calculator.serv
 import { TelegramService } from './external/telegram.service';
 
 // Handler services
-import { ErrorHandlerService } from './handler/error-handler.service';
 import { LoggingService } from './handler/logging.service';
 
 // Service services
 import { WithdrawalConstraintService } from './service/withdrawal-constraint.service';
-import { PortfolioManagerService } from './service/portfolio-manager.service';
 
 @Module({
-  imports: [DatabaseModule, AppConfigModule],
+  imports: [AppConfigModule],
   providers: [
     // Calculator services
     FeeCalculatorService,
@@ -29,12 +26,10 @@ import { PortfolioManagerService } from './service/portfolio-manager.service';
     TelegramService,
 
     // Handler services
-    ErrorHandlerService,
     LoggingService,
 
     // Service services
     WithdrawalConstraintService,
-    PortfolioManagerService,
   ],
   exports: [
     // Calculator services
@@ -45,12 +40,10 @@ import { PortfolioManagerService } from './service/portfolio-manager.service';
     TelegramService,
 
     // Handler services
-    ErrorHandlerService,
     LoggingService,
 
     // Service services
     WithdrawalConstraintService,
-    PortfolioManagerService,
   ],
 })
 export class UtilsModule {}
