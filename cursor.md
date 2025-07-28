@@ -1,54 +1,41 @@
-# Mission Briefing: Fix Failing Unit Tests in `ArbitrageRecordService`
+# Mission Briefing: Unit Testing for `kimp-core` Exchange & Utility Services
 
 ## Overall Goal
 
-- To fix the failing unit tests in `packages/kimp-core/src/db/arbitrage-record.service.spec.ts`.
-- The tests are failing because the mock for the TypeORM QueryBuilder is incomplete and does not include the `.setLock()` method.
+- To write unit tests for the remaining critical services within the `kimp-core` library: the main `ExchangeService` and the calculation services.
+- This will ensure that our core business logic for exchange interaction and profit calculation is reliable and correct.
 
 ## Current Branch
 
-- Continue working on the `test/unit-kimp-core-db` branch.
+- Ensure all work is done on the `test/unit-kimp-core-exchange-utils` branch.
 
 ## Step-by-Step Instructions for AI
 
-### 1. Locate the Test File
+### 1. Test `ExchangeService` (Facade Pattern)
 
-- Open the test file: `packages/kimp-core/src/db/arbitrage-record.service.spec.ts`.
+1.  Create a new test file: `packages/kimp-core/src/exchange/exchange.service.spec.ts`.
+2.  **Mock Dependencies**: The purpose of `ExchangeService` is to delegate tasks to the correct underlying service (`UpbitService` or `BinanceService`). We need to mock `UpbitService` and `BinanceService` to verify this delegation works correctly.
+3.  **Write Test Cases**:
+    - Create a test case for `getBalances`. It should verify that `exchangeService.getBalances('upbit')` calls the `getBalances` method on the mocked `upbitService`, and NOT on the `binanceService`.
+    - Create a similar test case for `createOrder`, verifying that `exchangeService.createOrder('binance', ...)` correctly calls the method on the mocked `binanceService`.
 
-### 2. Update the Mock Query Builder
+### 2. Test `FeeCalculatorService` (Pure Calculation)
 
-- Find the section where the mock for the `createQueryBuilder` is defined (likely within a `beforeEach` block).
-- The current mock is missing the `.setLock()` method, causing the tests to fail.
-- Update the mock object to be fully chainable and include all methods used by the `findAndLockNextCycle` function: `.setLock()`, `.where()`, `.andWhere()`, `.orderBy()`, `.getOne()`, and `.execute()`.
+1.  Create a new test file: `packages/kimp-core/src/utils/calculator/fee-calculator.service.spec.ts`.
+2.  This service has no external dependencies, so we can test its calculation logic directly.
+3.  **Write Test Cases**:
+    - Create a test for a `HIGH_PREMIUM_SELL_UPBIT` scenario. Provide fixed inputs (e.g., amount: 100, upbitPrice: 710, binancePrice: 0.5, rate: 1400) and assert that the calculated `netProfit` is the expected value.
+    - Create another test for a `LOW_PREMIUM_SELL_BINANCE` scenario with different inputs and assert the correctness of the calculation.
 
-### Code Example to Follow:
+### 3. Test `SlippageCalculatorService` (Pure Calculation)
 
-Please replace the existing mock query builder definition with the following complete version. This mock teaches the fake query builder how to handle all the required method calls.
+1.  Create a new test file: `packages/kimp-core/src/utils/calculator/slippage-calculator.service.spec.ts`.
+2.  **Write Test Cases**:
+    - Create a mock `OrderBook` object with sample bid/ask levels.
+    - Call the `calculate` method with a specific `investmentAmount`.
+    - Assert that the returned `averagePrice` and `slippagePercent` match the manually calculated, expected values.
 
-```typescript
-// Inside arbitrage-record.service.spec.ts
+## Verification
 
-// This mock should be defined within the main `describe` block or `beforeEach`
-const mockQueryBuilder = {
-  setLock: jest.fn().mockReturnThis(), // <-- Add this line
-  where: jest.fn().mockReturnThis(),
-  andWhere: jest.fn().mockReturnThis(),
-  orderBy: jest.fn().mockReturnThis(),
-  getOne: jest.fn().mockResolvedValue(null), // Default behavior
-  execute: jest.fn().mockResolvedValue({ affected: 0 }), // For the UPDATE query
-  set: jest.fn().mockReturnThis(), // For the UPDATE query
-  update: jest.fn().mockReturnThis(), // For the UPDATE query
-};
-
-// Ensure the repository and manager mocks use this query builder
-// Example:
-// mockArbitrageCycleRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-// mockEntityManager.createQueryBuilder.mockReturnValue(mockQuery_builder);
-
-After updating the mock definition, ensure that each test case (it(...)) properly configures the return value for .getOne() to simulate its specific scenario (e.g., returning a cycle object or returning null).
-
-Verification
-Run the unit tests again from the project's root directory.
-
-The command yarn test packages/kimp-core should now pass all tests, including the three previously failing tests for ArbitrageRecordService.
-```
+- Run the unit tests for the `kimp-core` package from the project's root directory.
+- The command `yarn test packages/kimp-core` should run, and ALL tests, including the previously created database service tests, must pass successfully.
