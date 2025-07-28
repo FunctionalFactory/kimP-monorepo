@@ -1,39 +1,38 @@
-# Mission Briefing: Phase 1, Step 1 - Core Library Foundation (DB & Config)
+# Mission Briefing: Phase 1, Step 2 - Core Library Exchange Module
 
 ## Overall Goal
 
-- The primary goal is to migrate essential database and configuration logic from the legacy project (`apps/kim-p-legacy`) into our new shared library (`packages/kimp-core`).
-- This will establish a stable foundation for all other applications.
+- To migrate all exchange-related services, modules, and interfaces from the legacy project into the `kimp-core` library.
+- This will centralize all exchange communication logic, making it reusable across all applications.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/core-database-setup` branch.
+- Ensure all work is done on the `feature/core-exchange-module` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Migrate and Refactor Database Entities
+### Step 1: Migrate Core Exchange Interface
 
-1.  Copy the file `apps/kim-p-legacy/src/db/entities/portfolio-log.entity.ts` to `packages/kimp-core/src/db/entities/`.
-2.  Create a new file `packages/kimp-core/src/db/entities/trade.entity.ts`. Based on our new schema design, this entity should include fields like `id`, `cycle_id`, `trade_type`, `symbol`, `status`, `net_profit_krw`, `investment_krw`, and a JSON column named `details`.
-3.  Create a new file `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`. Refactor it based on our new schema. It should now be a simple summary table containing `id`, `status`, `initial_trade_id` (FK to Trade), `rebalance_trade_id` (FK to Trade), `total_net_profit_krw`, etc.
-4.  Do not migrate `session-fund-validation.entity.ts`. It is deprecated.
+1.  Copy the file `apps/kim-p-legacy/src/common/exchange.interface.ts` to a new directory: `packages/kimp-core/src/exchange/`.
 
-### Step 2: Migrate Database Services
+### Step 2: Migrate Individual Exchange Modules
 
-1.  Copy the files `arbitrage-record.service.ts` and `portfolio-log.service.ts` from `apps/kim-p-legacy/src/db/` to `packages/kimp-core/src/db/`.
-2.  Update the code in `arbitrage-record.service.ts` to work with the new `ArbitrageCycle` and `Trade` entities. It should now manage both tables.
-3.  Ensure `portfolio-log.service.ts` correctly uses the `PortfolioLog` entity within the new library structure.
+1.  Copy the entire `upbit` directory from `apps/kim-p-legacy/src/` to `packages/kimp-core/src/exchange/`.
+2.  Copy the entire `binance` directory from `apps/kim-p-legacy/src/` to `packages/kimp-core/src/exchange/`.
+3.  Create a `simulation` directory inside `packages/kimp-core/src/exchange/`.
+4.  Copy the files `simulation.module.ts` and `simulation-exchange.service.ts` from `apps/kim-p-legacy/src/common/` to the new `packages/kimp-core/src/exchange/simulation/` directory.
 
-### Step 3: Migrate Configuration Services
+### Step 3: Migrate the Facade Service
 
-1.  Copy the entire `config` directory from `apps/kim-p-legacy/src/` to `packages/kimp-core/src/`.
+1.  Copy the `exchange.service.ts` file from `apps/kim-p-legacy/src/common/` to `packages/kimp-core/src/exchange/`.
+2.  Review all migrated files (`upbit.service.ts`, `binance.service.ts`, `exchange.service.ts`, etc.) and update any relative import paths (e.g., `../common/exchange.interface`) to point to their new locations within the library.
 
-### Step 4: Assemble the Core Modules
+### Step 4: Assemble the Main ExchangeModule
 
-1.  Create a new `database.module.ts` inside `packages/kimp-core/src/db/`.
-    - This module should use `TypeOrmModule.forFeature()` to register the `ArbitrageCycle`, `Trade`, and `PortfolioLog` entities.
-    - It must provide and export `ArbitrageRecordService` and `PortfolioLogService`.
-2.  Ensure that the main module file `packages/kimp-core/src/kimp-core.module.ts` correctly imports and exports the `DatabaseModule` and the `ConfigModule`.
+1.  Create a new file `exchange.module.ts` inside `packages/kimp-core/src/exchange/`.
+2.  Inside this new `ExchangeModule`, import `UpbitModule`, `BinanceModule`, and `SimulationModule`.
+3.  The module should provide and export the main `ExchangeService`.
+4.  Update the main `kimp-core.module.ts` to import and export this new `ExchangeModule`.
 
 ## Verification
 
