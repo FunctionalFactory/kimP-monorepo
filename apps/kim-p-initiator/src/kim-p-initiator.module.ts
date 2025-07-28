@@ -2,18 +2,21 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { KimPInitiatorController } from './kim-p-initiator.controller';
 import { KimPInitiatorService } from './kim-p-initiator.service';
-import { KimpCoreModule } from '@app/kimp-core';
-import { TestInjectionService } from './initiator/test-injection/test-injection.service';
-import { TradeExecutorService } from './initiator/trade-executor.service';
+import { AppConfigModule, ExchangeModule } from '@app/kimp-core';
+import { RedisModule } from './redis/redis.module';
+import { InitiatorModule } from './initiator/initiator.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    KimpCoreModule,
+    AppConfigModule,
+    ExchangeModule,
+    RedisModule,
+    InitiatorModule,
   ],
   controllers: [KimPInitiatorController],
-  providers: [KimPInitiatorService, TestInjectionService, TradeExecutorService],
+  providers: [KimPInitiatorService],
 })
 export class KimPInitiatorModule {}
