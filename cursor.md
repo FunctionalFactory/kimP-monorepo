@@ -1,89 +1,59 @@
-# Mission Briefing: Implement Lock Timeout for "Stuck" Cycle Prevention
+# Mission Briefing: Implement Retry and Dead Letter Queue for Error Handling
 
 ## Overall Goal
 
-- To resolve the "Stuck" Cycles issue identified in our architecture review.
-- We will implement a timeout mechanism so that if a `Finalizer` instance crashes while processing a cycle, the lock is eventually released, allowing another instance to pick up the job.
+- To make the system resilient against temporary, recoverable errors (e.g., exchange API errors, network issues).
+- We will implement a retry mechanism with exponential backoff for failed cycles.
+- Cycles that fail repeatedly will be moved to a "Dead Letter Queue" for manual inspection.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/db-lock-timeout` branch.
+- Ensure all work is done on the `feature/error-handling-retry` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Update the `ArbitrageCycle` Entity
+### Step 1: Enhance the `ArbitrageCycle` Entity
 
-1.  Open the file: `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`.
-2.  Add a new column `lockedAt` to store the timestamp when a lock is acquired. This should be a nullable timestamp.
-    ```typescript
-    @Column({ type: 'timestamp', nullable: true })
-    lockedAt: Date;
-    ```
+1.  Open `packages/kimp-core/src/db/entities/arbitrage-cycle.entity.ts`.
+2.  Add the following new columns to the entity to track retry state:
+    - `retryCount` (type: `int`, default: 0)
+    - `lastRetryAt` (type: `timestamp`, nullable: true)
+    - `failureReason` (type: `text`, nullable: true)
+3.  Add new statuses to the `ArbitrageCycleStatus` type: `'AWAITING_RETRY'` and `'DEAD_LETTER'`.
 
-### Step 2: Enhance the `findAndLockNextCycle` Method
+### Step 2: Create a New `RetryManagerService`
 
-1.  Open the file: `packages/kimp-core/src/db/arbitrage-record.service.ts`.
-2.  Modify the `findAndLockNextCycle` method to incorporate the timeout logic.
-3.  **Before** finding a new cycle, add a query that **resets the status of any timed-out cycles**.
-    - An `UPDATE` query should target cycles where the `status` is `REBALANCING_IN_PROGRESS`.
-    - The condition should check if `lockedAt` is older than a specific timeout period (e.g., 5 minutes ago).
-    - If a cycle is timed-out, its `status` should be reset to `AWAITING_REBALANCE` and `lockedAt` should be set to `null`.
-4.  When a cycle is successfully locked, **set the `lockedAt` column to the current timestamp** before saving it.
+1.  Create a new file `retry-manager.service.ts` inside `packages/kimp-core/src/utils/service/`.
+2.  Create a new `RetryManagerService` class inside this file.
+3.  This service should be provided by the `UtilsModule`.
+4.  Implement a public method `handleCycleFailure(cycle: ArbitrageCycle, error: Error)`.
 
-### Code Example to Follow:
+### Step 3: Implement the Failure Handling Logic
 
-Please refactor the `findAndLockNextCycle` method in `arbitrage-record.service.ts` to match this logic:
+1.  Inside the `handleCycleFailure` method, implement the following logic:
+    - Increment the `cycle.retryCount`.
+    - Set the `cycle.failureReason` to the new error message.
+    - Set `cycle.lastRetryAt` to the current timestamp.
+    - Define a `MAX_RETRIES` constant (e.g., 5).
+    - **If `cycle.retryCount` >= `MAX_RETRIES`:**
+      - Set the `cycle.status` to `'DEAD_LETTER'`.
+      - Log a critical error indicating that the cycle has been moved to the dead letter queue.
+      - (Optional but recommended) Use `TelegramService` to send an alert to the administrator.
+    - **Else (if retries are remaining):**
+      - Set the `cycle.status` to `'AWAITING_RETRY'`.
+      - Calculate the next retry time using exponential backoff (e.g., delay = `10 * (2 ** cycle.retryCount)` minutes).
+      - You will need to create a `nextRetryAt` column in the entity for this.
+    - Save the updated cycle entity to the database using `ArbitrageRecordService`.
 
-```typescript
-// packages/kimp-core/src/db/arbitrage-record.service.ts
+### Step 4: Create a Scheduler to Process Retries
 
-public async findAndLockNextCycle(): Promise<ArbitrageCycle | null> {
-  const LOCK_TIMEOUT_MINUTES = 5;
+1.  This logic should be placed in the `kimP-Finalizer` application.
+2.  In `apps/kim-p-finalizer/src/scheduler/cycle.scheduler.ts`, add a new cron job that runs every minute.
+3.  This cron job will call a new method in `RetryManagerService` (e.g., `processPendingRetries`).
+4.  The `processPendingRetries` method will query the database for cycles where `status` is `'AWAITING_RETRY'` and `nextRetryAt` is in the past.
+5.  For each found cycle, it should change its status back to `AWAITING_REBALANCE` so that the main `Finalizer` logic can pick it up and try again.
 
-  return this.arbitrageCycleRepository.manager.transaction(
-    async (transactionalEntityManager) => {
-      // 1. Reset any cycles that have timed out
-      const timeout = new Date(Date.now() - LOCK_TIMEOUT_MINUTES * 60 * 1000);
-      await transactionalEntityManager
-        .createQueryBuilder()
-        .update(ArbitrageCycle)
-        .set({
-          status: 'AWAITING_REBALANCE',
-          lockedAt: null,
-          // Optionally, you can add a note to errorDetails here
-        })
-        .where('status = :status', { status: 'REBALANCING_IN_PROGRESS' })
-        .andWhere('lockedAt < :timeout', { timeout })
-        .execute();
+## Verification
 
-      // 2. Find the oldest pending cycle and lock the row for writing
-      const cycle = await transactionalEntityManager
-        .createQueryBuilder(ArbitrageCycle, 'cycle')
-        .setLock('pessimistic_write')
-        .where('cycle.status = :status', { status: 'AWAITING_REBALANCE' })
-        .orderBy('cycle.created_at', 'ASC')
-        .getOne();
-
-      // 3. If no cycle is found, return null
-      if (!cycle) {
-        return null;
-      }
-
-      // 4. Update status and set the lock timestamp
-      cycle.status = 'REBALANCING_IN_PROGRESS';
-      cycle.lockedAt = new Date(); // Set the current time as the lock time
-      await transactionalEntityManager.save(cycle);
-
-      this.logger.log(`Locked cycle ${cycle.id} with a ${LOCK_TIMEOUT_MINUTES}-minute timeout.`);
-
-      // 5. Return the locked cycle
-      return cycle;
-    },
-  );
-}
-```
-
-Verification
-After the AI completes the task, run yarn build kimp-core. It must complete without errors.
-
-Review the code to ensure the timeout logic is correctly implemented as requested.
+- After the AI completes the task, run `yarn build kimp-core` and `yarn build kim-p-finalizer`. They must complete without errors.
+- Review the code to ensure the retry and dead letter logic is implemented correctly in the new service and entity.

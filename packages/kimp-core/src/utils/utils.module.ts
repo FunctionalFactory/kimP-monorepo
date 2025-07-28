@@ -1,6 +1,7 @@
 // packages/kimp-core/src/utils/utils.module.ts
 import { Module } from '@nestjs/common';
 import { AppConfigModule } from '../config/config.module';
+import { DatabaseModule } from '../db/database.module';
 
 // Calculator services
 import { FeeCalculatorService } from './calculator/fee-calculator.service';
@@ -14,9 +15,10 @@ import { LoggingService } from './handler/logging.service';
 
 // Service services
 import { WithdrawalConstraintService } from './service/withdrawal-constraint.service';
+import { RetryManagerService } from './service/retry-manager.service';
 
 @Module({
-  imports: [AppConfigModule],
+  imports: [AppConfigModule, DatabaseModule],
   providers: [
     // Calculator services
     FeeCalculatorService,
@@ -30,6 +32,7 @@ import { WithdrawalConstraintService } from './service/withdrawal-constraint.ser
 
     // Service services
     WithdrawalConstraintService,
+    RetryManagerService,
   ],
   exports: [
     // Calculator services
@@ -44,6 +47,7 @@ import { WithdrawalConstraintService } from './service/withdrawal-constraint.ser
 
     // Service services
     WithdrawalConstraintService,
+    RetryManagerService,
   ],
 })
 export class UtilsModule {}
