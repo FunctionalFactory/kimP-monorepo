@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "monorepo": true,
+  "collection": "@nestjs/schematics",
+  "projects": {
+    "kim-p-feeder": {
+      "type": "application",
+      "root": "apps/kim-p-feeder",
+      "entryFile": "main",
+      "sourceRoot": "apps/kim-p-feeder/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/kim-p-feeder/tsconfig.app.json"
+      }
+    },
+    "kim-p-initiator": {
+      "type": "application",
+      "root": "apps/kim-p-initiator",
+      "entryFile": "main",
+      "sourceRoot": "apps/kim-p-initiator/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/kim-p-initiator/tsconfig.app.json"
+      }
+    },
+    "kim-p-finalizer": {
+      "type": "application",
+      "root": "apps/kim-p-finalizer",
+      "entryFile": "main",
+      "sourceRoot": "apps/kim-p-finalizer/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/kim-p-finalizer/tsconfig.app.json"
+      }
+    },
+    "kimp-core": {
+      "type": "library",
+      "root": "packages/kimp-core",
+      "entryFile": "index",
+      "sourceRoot": "packages/kimp-core/src",
+      "compilerOptions": {
+        "tsConfigPath": "packages/kimp-core/tsconfig.lib.json"
+      }
+    }
+  }
+}
