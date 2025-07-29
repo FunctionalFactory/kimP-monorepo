@@ -1,18 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { MockKimPFeederModule } from './mock-module';
+import { KimPFinalizerModule } from '../src/kim-p-finalizer.module';
 
-describe('KimPFeederController (e2e)', () => {
+describe('KimPFinalizer (e2e)', () => {
   let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [MockKimPFeederModule],
+      imports: [KimPFinalizerModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   it('/ (GET)', () => {
@@ -20,5 +24,13 @@ describe('KimPFeederController (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('should return 404 for unknown routes', () => {
+    return request(app.getHttpServer()).get('/unknown').expect(404);
+  });
+
+  it('should handle health check endpoint', () => {
+    return request(app.getHttpServer()).get('/health').expect(404); // 현재 health endpoint가 없으므로 404
   });
 });

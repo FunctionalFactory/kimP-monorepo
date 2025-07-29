@@ -4,19 +4,35 @@ import { KimPFinalizerService } from './kim-p-finalizer.service';
 
 describe('KimPFinalizerController', () => {
   let kimPFinalizerController: KimPFinalizerController;
+  let kimPFinalizerService: KimPFinalizerService;
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [KimPFinalizerController],
-      providers: [KimPFinalizerService],
+      providers: [
+        {
+          provide: KimPFinalizerService,
+          useValue: {
+            getHello: jest.fn().mockReturnValue('Hello World!'),
+          },
+        },
+      ],
     }).compile();
 
-    kimPFinalizerController = app.get<KimPFinalizerController>(KimPFinalizerController);
+    kimPFinalizerController = app.get<KimPFinalizerController>(
+      KimPFinalizerController,
+    );
+    kimPFinalizerService = app.get<KimPFinalizerService>(KimPFinalizerService);
   });
 
-  describe('root', () => {
+  it('should be defined', () => {
+    expect(kimPFinalizerController).toBeDefined();
+  });
+
+  describe('getHello', () => {
     it('should return "Hello World!"', () => {
       expect(kimPFinalizerController.getHello()).toBe('Hello World!');
+      expect(kimPFinalizerService.getHello).toHaveBeenCalled();
     });
   });
 });

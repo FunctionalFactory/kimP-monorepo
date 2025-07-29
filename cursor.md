@@ -1,54 +1,57 @@
-# Mission Briefing: Final Phase - Build the `kimP-Finalizer` Application
+# Mission Briefing: Unit & Functional Tests for `kimP-Feeder`
 
 ## Overall Goal
 
-- To build the `kimP-Finalizer` application, the final microservice that completes our automated arbitrage system.
-- This application will act as a robust "worker" that safely processes pending arbitrage cycles, handles failures gracefully, and finalizes trades.
+- To write unit and functional tests for the `kimP-Feeder` application.
+- This will verify its core responsibilities: connecting to external services (WebSockets, Redis) and correctly relaying data.
+- We will also implement the Health Check endpoint that was recommended in the architecture review.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/build-finalizer-app` branch.
+- Ensure all work is done on the `test/unit-feeder-app` branch. (You should create this branch first)
 
 ## Step-by-Step Instructions for AI
 
-### 1. Create the Scheduler
+### 1. Implement Health Check Endpoint
 
-1.  In `apps/kim-p-finalizer/src/`, create a `scheduler` directory with a `SchedulerModule` and `CycleSchedulerService`.
-2.  The `CycleSchedulerService` should have a cron job (`@Cron()`) that runs at a regular interval (e.g., every 15 seconds).
-3.  This cron job's task is to call a processing method in a new `FinalizerService`.
+1.  In `apps/kim-p-feeder/src/`, create a `health` directory with a `HealthController` and `HealthModule`.
+2.  The `HealthController` should have a `@Get('/health')` endpoint.
+3.  This endpoint should check the connection status of `PriceFeedService` and `RedisPublisherService` and return a status object.
+    ```json
+    {
+      "status": "ok", // or "error"
+      "dependencies": {
+        "webSockets": "connected", // or "disconnected"
+        "redis": "connected" // or "disconnected"
+      }
+    }
+    ```
+4.  Import the `HealthModule` into the root `KimPFeederModule`.
 
-### 2. Implement the Core `FinalizerService`
+### 2. Set Up Test Environment
 
-1.  In `apps/kim-p-finalizer/src/`, create a `finalizer` directory with a `FinalizerModule` and `FinalizerService`.
-2.  The `CycleSchedulerService` should inject and call a public method in `FinalizerService`, for example, `processPendingCycles()`.
+1.  Create test files for the new services:
+    - `apps/kim-p-feeder/src/price-feed/price-feed.service.spec.ts`
+    - `apps/kim-p-feeder/src/redis/redis-publisher.service.spec.ts`
+    - `apps/kim-p-feeder/src/health/health.controller.spec.ts`
+2.  For each test file, use `@nestjs/testing`'s `Test.createTestingModule` to set up the environment.
+3.  **Mock Dependencies**:
+    - When testing `PriceFeedService`, mock the `RedisPublisherService` and the `ws` library.
+    - When testing `RedisPublisherService`, mock the `ioredis` library.
+    - When testing `HealthController`, mock both `PriceFeedService` and `RedisPublisherService`.
 
-### 3. Implement the Cycle Processing Logic in `FinalizerService`
+### 3. Write Unit Test Cases
 
-This is the most critical part. The `processPendingCycles` method must implement the following logic:
-
-1.  Use a `while(true)` loop to continuously process jobs until none are left in the queue.
-2.  Inside the loop, call `this.arbitrageRecordService.findAndLockNextCycle()` from `@app/kimp-core`. This is **essential** for concurrency safety.
-3.  If `findAndLockNextCycle()` returns `null`, it means there are no pending jobs, so `break` the loop.
-4.  If a `cycle` object is returned, wrap the entire subsequent logic for this cycle in `LoggingService.run({ cycleId: cycle.id }, async () => { ... })` for tracing.
-5.  **Inside the `LoggingService.run` block**:
-    a. **Plan the rebalance**: Fetch the initial trade's details (`cycle.initial_trade_id`) to get the profit, which serves as the "allowed loss budget".
-    b. **Execute the rebalance**: Find the most cost-effective coin and execute the rebalancing trade using the appropriate `Strategy...Service`.
-    c. **Handle Success**: If the trade is successful, create the `REBALANCE` trade record and update the cycle's status to `COMPLETED`. Then, call `portfolioLogService` to log the new portfolio total.
-    d. **Handle Failure**: If the trade fails, call `this.retryManagerService.handleCycleFailure(cycle, error)` from `@app/kimp-core`. This will automatically handle the retry count and move the cycle to `DEAD_LETTER` if necessary.
-
-### 4. Assemble the Application
-
-1.  Open `apps/kim-p-finalizer/src/kim-p-finalizer.module.ts`.
-2.  Import `KimpCoreModule` to access all shared services.
-3.  Import `ScheduleModule.forRoot()` from `@nestjs/schedule`.
-4.  Import the local `SchedulerModule` and `FinalizerModule`.
+1.  **For `RedisPublisherService`**:
+    - Write a test to ensure it calls the `redis.publish()` method with the correct channel (`TICKER_UPDATES`) and a properly stringified JSON payload when its `publishPriceUpdate` method is called.
+2.  **For `PriceFeedService`**:
+    - Write a test to ensure that when a mock WebSocket emits a 'message' event, the service correctly calls `redisPublisherService.publishPriceUpdate`.
+3.  **For `HealthController`**:
+    - Write a test to check that the `/health` endpoint returns a 200 OK status.
+    - Write another test to verify that if the mocked `RedisPublisherService` reports a disconnected state, the health check response reflects this.
 
 ## Verification
 
-- Start all three applications: `Feeder`, `Initiator`, and `Finalizer`.
-- **Test Scenario**: Wait for the `Initiator` to detect an opportunity and create a new cycle in the database with the status `AWAITING_REBALANCE`.
-- **Expected Outcome**:
-  1.  The `Finalizer`'s logs should show that its scheduler has found the new cycle.
-  2.  It should log that it has locked the cycle for processing.
-  3.  It should execute the rebalancing logic and complete the cycle.
-  4.  The `arbitrage_cycles` table in the database should show the final status as `COMPLETED`.
+- Run the unit tests for the `kimP-Feeder` package from the project's root directory.
+- The command `yarn test apps/kim-p-feeder` must run, and all new tests should pass successfully.
+- This will confirm that the Feeder is robust and its status is monitorable before we rely on it in other services.
