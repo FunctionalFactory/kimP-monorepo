@@ -1,56 +1,54 @@
-# Mission Briefing: Phase 3 - Build the `kimP-Initiator` Application
+# Mission Briefing: Final Phase - Build the `kimP-Finalizer` Application
 
 ## Overall Goal
 
-- To build the `kimP-Initiator` application, which acts as the "brain" of the arbitrage system.
-- It will subscribe to real-time price data from Redis, detect profitable opportunities, execute the initial trade, and create a new arbitrage cycle record in the database for the `Finalizer` to complete.
+- To build the `kimP-Finalizer` application, the final microservice that completes our automated arbitrage system.
+- This application will act as a robust "worker" that safely processes pending arbitrage cycles, handles failures gracefully, and finalizes trades.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/build-initiator-app` branch.
+- Ensure all work is done on the `feature/build-finalizer-app` branch.
 
 ## Step-by-Step Instructions for AI
 
-### Step 1: Implement Redis Subscriber
+### 1. Create the Scheduler
 
-1.  In `apps/kim-p-initiator/src/`, create a `redis` directory.
-2.  Inside it, create a `RedisSubscriberService` and `RedisModule`.
-3.  The `RedisSubscriberService` should connect to Redis and **subscribe** to the `TICKER_UPDATES` channel.
-4.  When a message is received, it should parse the JSON and emit the price data to other services within the application using a NestJS `EventEmitter` or an RxJS `Subject`.
+1.  In `apps/kim-p-finalizer/src/`, create a `scheduler` directory with a `SchedulerModule` and `CycleSchedulerService`.
+2.  The `CycleSchedulerService` should have a cron job (`@Cron()`) that runs at a regular interval (e.g., every 15 seconds).
+3.  This cron job's task is to call a processing method in a new `FinalizerService`.
 
-### Step 2: Implement the Opportunity Scanner
+### 2. Implement the Core `FinalizerService`
 
-1.  In `apps/kim-p-initiator/src/`, create an `initiator` directory.
-2.  Inside it, create an `OpportunityScannerService`.
-3.  This service should listen for the price update events emitted by `RedisSubscriberService`.
-4.  Upon receiving a price update, it must use the `SpreadCalculatorService` from our `@app/kimp-core` library to determine if a profitable "Normal" or "Reverse" opportunity exists.
-5.  If a profitable opportunity is found, it should trigger the `TradeExecutorService`.
+1.  In `apps/kim-p-finalizer/src/`, create a `finalizer` directory with a `FinalizerModule` and `FinalizerService`.
+2.  The `CycleSchedulerService` should inject and call a public method in `FinalizerService`, for example, `processPendingCycles()`.
 
-### Step 3: Implement the Trade Executor
+### 3. Implement the Cycle Processing Logic in `FinalizerService`
 
-1.  Create a `TradeExecutorService` within the `initiator` directory.
-2.  This service will contain the main business logic for starting a trade. It should have a public method like `initiateArbitrageCycle(opportunity)`.
-3.  The method must perform the following sequence:
-    a. Use `PortfolioManagerService` to check for sufficient funds. If funds are insufficient, log it and stop.
-    b. Use `ArbitrageRecordService` to create the initial `Trade` and `ArbitrageCycle` records in the database. The cycle's status should be `AWAITING_REBALANCE`.
-    c. Wrap the entire trading logic in `LoggingService.run({ cycleId: newCycle.id }, ...)` to enable centralized tracing.
-    d. Based on the opportunity type (Normal/Reverse), call the appropriate method from `StrategyHighService` or `StrategyLowService` to execute the first leg of the trade.
-    e. Handle any errors during the trade execution using the `ErrorHandlerService`. If the trade fails, update the cycle status to `FAILED`.
+This is the most critical part. The `processPendingCycles` method must implement the following logic:
 
-### Step 4: Assemble the Application
+1.  Use a `while(true)` loop to continuously process jobs until none are left in the queue.
+2.  Inside the loop, call `this.arbitrageRecordService.findAndLockNextCycle()` from `@app/kimp-core`. This is **essential** for concurrency safety.
+3.  If `findAndLockNextCycle()` returns `null`, it means there are no pending jobs, so `break` the loop.
+4.  If a `cycle` object is returned, wrap the entire subsequent logic for this cycle in `LoggingService.run({ cycleId: cycle.id }, async () => { ... })` for tracing.
+5.  **Inside the `LoggingService.run` block**:
+    a. **Plan the rebalance**: Fetch the initial trade's details (`cycle.initial_trade_id`) to get the profit, which serves as the "allowed loss budget".
+    b. **Execute the rebalance**: Find the most cost-effective coin and execute the rebalancing trade using the appropriate `Strategy...Service`.
+    c. **Handle Success**: If the trade is successful, create the `REBALANCE` trade record and update the cycle's status to `COMPLETED`. Then, call `portfolioLogService` to log the new portfolio total.
+    d. **Handle Failure**: If the trade fails, call `this.retryManagerService.handleCycleFailure(cycle, error)` from `@app/kimp-core`. This will automatically handle the retry count and move the cycle to `DEAD_LETTER` if necessary.
 
-1.  Open `apps/kim-p-initiator/src/kim-p-initiator.module.ts`.
-2.  Import `KimpCoreModule` to gain access to all shared services.
-3.  Create an `InitiatorModule` that provides and exports the `OpportunityScannerService` and `TradeExecutorService`.
-4.  Import the `RedisModule` and the `InitiatorModule` into the root `KimPInitiatorModule`.
+### 4. Assemble the Application
+
+1.  Open `apps/kim-p-finalizer/src/kim-p-finalizer.module.ts`.
+2.  Import `KimpCoreModule` to access all shared services.
+3.  Import `ScheduleModule.forRoot()` from `@nestjs/schedule`.
+4.  Import the local `SchedulerModule` and `FinalizerModule`.
 
 ## Verification
 
-- Start the `kimP-Feeder` application in one terminal.
-- Start the `kimP-Initiator` application in another terminal (`yarn start:dev kim-p-initiator`).
-- **Check the logs:** The `Initiator` should log that it has connected to Redis and is receiving price updates broadcast by the `Feeder`.
-- **Test the logic:** When a real (or simulated) profitable price spread occurs, the `Initiator` logs should show that it has:
-  1.  Detected an opportunity.
-  2.  Created a new cycle in the database.
-  3.  Initiated the trade.
-- **Check the database:** The `arbitrage_cycles` table should contain a new row with the status `AWAITING_REBALANCE`.
+- Start all three applications: `Feeder`, `Initiator`, and `Finalizer`.
+- **Test Scenario**: Wait for the `Initiator` to detect an opportunity and create a new cycle in the database with the status `AWAITING_REBALANCE`.
+- **Expected Outcome**:
+  1.  The `Finalizer`'s logs should show that its scheduler has found the new cycle.
+  2.  It should log that it has locked the cycle for processing.
+  3.  It should execute the rebalancing logic and complete the cycle.
+  4.  The `arbitrage_cycles` table in the database should show the final status as `COMPLETED`.
