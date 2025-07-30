@@ -8,6 +8,7 @@ import {
   LoggingService,
   ArbitrageRecordService,
   PortfolioManagerService,
+  ErrorHandlerService,
 } from '@app/kimp-core';
 
 describe('KimPInitiator Integration Tests', () => {
@@ -69,6 +70,12 @@ describe('KimPInitiator Integration Tests', () => {
           provide: PortfolioManagerService,
           useValue: {
             getCurrentInvestmentAmount: jest.fn().mockResolvedValue(1000000),
+          },
+        },
+        {
+          provide: ErrorHandlerService,
+          useValue: {
+            handleError: jest.fn(),
           },
         },
         {

@@ -58,22 +58,23 @@ export class OpportunityScannerService implements OnModuleInit {
     upbitPrice: number,
     binancePrice: number,
   ): ArbitrageOpportunity | null {
-    // 기본 스프레드 계산
+    // 1단계: 기본 스프레드 계산
     const spreadPercent =
       Math.abs((upbitPrice - binancePrice) / upbitPrice) * 100;
 
-    // 0.5% 이상 스프레드가 있을 때만 기회로 판단
+    // 최소 스프레드 필터링 (0.5% 이상)
     if (spreadPercent < 0.5) {
       return null;
     }
 
     const isNormalOpportunity = upbitPrice > binancePrice;
 
-    // 수수료 계산을 위한 기본 설정
+    // 2단계: 수수료 계산을 위한 설정
     const rate = 1300; // USD/KRW 환율 (실제로는 동적으로 가져와야 함)
     const buyAmount = 1000000 / binancePrice; // 100만원 투자 시뮬레이션
 
     try {
+      // 3단계: FeeCalculatorService를 통한 3단계 필터링 (수수료, 거래량, 슬리피지)
       const feeResult = this.feeCalculatorService.calculate({
         symbol,
         amount: buyAmount,
@@ -84,6 +85,18 @@ export class OpportunityScannerService implements OnModuleInit {
           ? 'HIGH_PREMIUM_SELL_UPBIT'
           : 'LOW_PREMIUM_SELL_BINANCE',
       });
+
+      // 수익성 필터링 (순수익이 양수여야 함)
+      if (feeResult.netProfitPercent <= 0) {
+        this.logger.debug(
+          `[필터링] ${symbol} 수익성 부족: ${feeResult.netProfitPercent.toFixed(2)}%`,
+        );
+        return null;
+      }
+
+      this.logger.log(
+        `[기회감지] ${symbol} 수익성 확인: ${feeResult.netProfitPercent.toFixed(2)}%`,
+      );
 
       return {
         symbol,
