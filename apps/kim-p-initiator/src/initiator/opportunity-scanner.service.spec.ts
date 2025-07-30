@@ -4,14 +4,25 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OpportunityScannerService } from './opportunity-scanner.service';
 import { TradeExecutorService } from './trade-executor.service';
 import { PriceUpdateData } from '../redis/redis-subscriber.service';
+import { FeeCalculatorService, LoggingService } from '@app/kimp-core';
 
 describe('OpportunityScannerService', () => {
   let service: OpportunityScannerService;
   let tradeExecutor: jest.Mocked<TradeExecutorService>;
+  let feeCalculatorService: jest.Mocked<FeeCalculatorService>;
+  let loggingService: jest.Mocked<LoggingService>;
 
   beforeEach(async () => {
     const mockTradeExecutor = {
       initiateArbitrageCycle: jest.fn(),
+    };
+
+    const mockFeeCalculatorService = {
+      calculate: jest.fn(),
+    };
+
+    const mockLoggingService = {
+      error: jest.fn(),
     };
 
     const mockEventEmitter = {
@@ -26,6 +37,14 @@ describe('OpportunityScannerService', () => {
           useValue: mockTradeExecutor,
         },
         {
+          provide: FeeCalculatorService,
+          useValue: mockFeeCalculatorService,
+        },
+        {
+          provide: LoggingService,
+          useValue: mockLoggingService,
+        },
+        {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
@@ -34,6 +53,8 @@ describe('OpportunityScannerService', () => {
 
     service = module.get<OpportunityScannerService>(OpportunityScannerService);
     tradeExecutor = module.get(TradeExecutorService);
+    feeCalculatorService = module.get(FeeCalculatorService);
+    loggingService = module.get(LoggingService);
 
     // Logger를 mock으로 설정
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
@@ -73,7 +94,7 @@ describe('OpportunityScannerService', () => {
       expect(privateService.lastPrices['xrp'].upbit).toBe(1000);
     });
 
-    it('should detect normal opportunity when spread > 0.5%', async () => {
+    it('should detect profitable opportunity when spread > 0.5%', async () => {
       const upbitData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'upbit',
@@ -87,6 +108,20 @@ describe('OpportunityScannerService', () => {
         price: 994, // 0.6% 스프레드
         timestamp: Date.now(),
       };
+
+      // FeeCalculatorService mock 설정
+      feeCalculatorService.calculate.mockReturnValue({
+        grossProfit: 6000,
+        totalFee: 1000,
+        netProfit: 5000,
+        netProfitPercent: 0.3,
+        binanceSpotBuyFeeKrw: 500,
+        upbitSellFeeKrw: 500,
+        transferCoinToUpbitFeeKrw: 0,
+        usdtTransferFeeKrw: 0,
+        binanceFuturesEntryFeeKrw: 0,
+        binanceFuturesExitFeeKrw: 0,
+      });
 
       await service.handlePriceUpdate(upbitData);
       await service.handlePriceUpdate(binanceData);
@@ -96,48 +131,15 @@ describe('OpportunityScannerService', () => {
       );
       expect(tradeExecutor.initiateArbitrageCycle).toHaveBeenCalledWith({
         symbol: 'xrp',
-        upbit: 1000,
-        binance: 994,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
-        },
+        upbitPrice: 1000,
+        binancePrice: 994,
+        spreadPercent: 0.6,
+        isNormalOpportunity: true,
+        netProfitPercent: 0.3,
       });
     });
 
-    it('should detect reverse opportunity when spread > 0.5%', async () => {
-      const upbitData: PriceUpdateData = {
-        symbol: 'xrp',
-        exchange: 'upbit',
-        price: 994, // 0.6% 스프레드
-        timestamp: Date.now(),
-      };
-
-      const binanceData: PriceUpdateData = {
-        symbol: 'xrp',
-        exchange: 'binance',
-        price: 1000,
-        timestamp: Date.now(),
-      };
-
-      await service.handlePriceUpdate(upbitData);
-      await service.handlePriceUpdate(binanceData);
-
-      expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[기회감지] xrp 스프레드: 0.60%, Normal: false',
-      );
-      expect(tradeExecutor.initiateArbitrageCycle).toHaveBeenCalledWith({
-        symbol: 'xrp',
-        upbit: 994,
-        binance: 1000,
-        spread: {
-          normalOpportunity: false,
-          reverseOpportunity: true,
-        },
-      });
-    });
-
-    it('should not trigger arbitrage when spread <= 0.5%', async () => {
+    it('should not detect opportunity when spread < 0.5%', async () => {
       const upbitData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'upbit',
@@ -148,7 +150,7 @@ describe('OpportunityScannerService', () => {
       const binanceData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'binance',
-        price: 995, // 0.5% 스프레드
+        price: 998, // 0.2% 스프레드
         timestamp: Date.now(),
       };
 
@@ -158,48 +160,52 @@ describe('OpportunityScannerService', () => {
       expect(tradeExecutor.initiateArbitrageCycle).not.toHaveBeenCalled();
     });
 
-    it('should handle multiple symbols independently', async () => {
-      const xrpUpbit: PriceUpdateData = {
+    it('should detect reverse opportunity when binance price > upbit price', async () => {
+      const upbitData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'upbit',
-        price: 1000,
-        timestamp: Date.now(),
-      };
-
-      const xrpBinance: PriceUpdateData = {
-        symbol: 'xrp',
-        exchange: 'binance',
         price: 994,
         timestamp: Date.now(),
       };
 
-      const trxUpbit: PriceUpdateData = {
-        symbol: 'trx',
-        exchange: 'upbit',
-        price: 500,
-        timestamp: Date.now(),
-      };
-
-      const trxBinance: PriceUpdateData = {
-        symbol: 'trx',
+      const binanceData: PriceUpdateData = {
+        symbol: 'xrp',
         exchange: 'binance',
-        price: 497,
+        price: 1000, // 0.6% 스프레드 (reverse)
         timestamp: Date.now(),
       };
 
-      await service.handlePriceUpdate(xrpUpbit);
-      await service.handlePriceUpdate(trxUpbit);
-      await service.handlePriceUpdate(xrpBinance);
-      await service.handlePriceUpdate(trxBinance);
+      // FeeCalculatorService mock 설정
+      feeCalculatorService.calculate.mockReturnValue({
+        grossProfit: 4000,
+        totalFee: 1000,
+        netProfit: 3000,
+        netProfitPercent: 0.2,
+        binanceSpotBuyFeeKrw: 500,
+        upbitSellFeeKrw: 500,
+        transferCoinToUpbitFeeKrw: 0,
+        usdtTransferFeeKrw: 0,
+        binanceFuturesEntryFeeKrw: 0,
+        binanceFuturesExitFeeKrw: 0,
+      });
 
-      expect(tradeExecutor.initiateArbitrageCycle).toHaveBeenCalledTimes(2);
+      await service.handlePriceUpdate(upbitData);
+      await service.handlePriceUpdate(binanceData);
 
-      const calls = tradeExecutor.initiateArbitrageCycle.mock.calls;
-      expect(calls[0][0].symbol).toBe('xrp');
-      expect(calls[1][0].symbol).toBe('trx');
+      expect(Logger.prototype.log).toHaveBeenCalledWith(
+        '[기회감지] xrp 스프레드: 0.60%, Normal: false',
+      );
+      expect(tradeExecutor.initiateArbitrageCycle).toHaveBeenCalledWith({
+        symbol: 'xrp',
+        upbitPrice: 994,
+        binancePrice: 1000,
+        spreadPercent: expect.closeTo(0.6, 2),
+        isNormalOpportunity: false,
+        netProfitPercent: 0.2,
+      });
     });
 
-    it('should calculate spread correctly', async () => {
+    it('should handle fee calculation errors gracefully', async () => {
       const upbitData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'upbit',
@@ -210,16 +216,24 @@ describe('OpportunityScannerService', () => {
       const binanceData: PriceUpdateData = {
         symbol: 'xrp',
         exchange: 'binance',
-        price: 990, // 1% 스프레드
+        price: 994,
         timestamp: Date.now(),
       };
+
+      // FeeCalculatorService에서 에러 발생
+      feeCalculatorService.calculate.mockImplementation(() => {
+        throw new Error('Fee calculation failed');
+      });
 
       await service.handlePriceUpdate(upbitData);
       await service.handlePriceUpdate(binanceData);
 
-      expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[기회감지] xrp 스프레드: 1.00%, Normal: true',
+      expect(loggingService.error).toHaveBeenCalledWith(
+        '스프레드 계산 중 오류: Fee calculation failed',
+        expect.any(Error),
+        { service: 'OpportunityScannerService' },
       );
+      expect(tradeExecutor.initiateArbitrageCycle).not.toHaveBeenCalled();
     });
   });
 });

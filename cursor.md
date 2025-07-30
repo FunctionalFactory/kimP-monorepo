@@ -1,57 +1,50 @@
-# Mission Briefing: Unit & Functional Tests for `kimP-Feeder`
+# Mission Briefing: Unit & Functional Tests for `kimP-Initiator`
 
 ## Overall Goal
 
-- To write unit and functional tests for the `kimP-Feeder` application.
-- This will verify its core responsibilities: connecting to external services (WebSockets, Redis) and correctly relaying data.
-- We will also implement the Health Check endpoint that was recommended in the architecture review.
+- To write comprehensive unit tests for the `kimP-Initiator` application, which acts as the system's brain.
+- The tests will verify that the application correctly subscribes to Redis data, uses `kimp-core` services to analyze opportunities, and properly initiates an arbitrage cycle in the database.
 
 ## Current Branch
 
-- Ensure all work is done on the `test/unit-feeder-app` branch. (You should create this branch first)
+- Ensure all work is done on the `test/unit-initiator-app` branch.
 
 ## Step-by-Step Instructions for AI
 
-### 1. Implement Health Check Endpoint
+### 1. Set Up Test Environment
 
-1.  In `apps/kim-p-feeder/src/`, create a `health` directory with a `HealthController` and `HealthModule`.
-2.  The `HealthController` should have a `@Get('/health')` endpoint.
-3.  This endpoint should check the connection status of `PriceFeedService` and `RedisPublisherService` and return a status object.
-    ```json
-    {
-      "status": "ok", // or "error"
-      "dependencies": {
-        "webSockets": "connected", // or "disconnected"
-        "redis": "connected" // or "disconnected"
-      }
-    }
-    ```
-4.  Import the `HealthModule` into the root `KimPFeederModule`.
+1.  Create test files for the key services in `apps/kim-p-initiator/src/initiator/`:
+    - `redis-subscriber.service.spec.ts` (if you created this service)
+    - `opportunity-scanner.service.spec.ts`
+    - `trade-executor.service.spec.ts`
+2.  For each test file, use `@nestjs/testing`'s `Test.createTestingModule`.
+3.  **Mock ALL `kimp-core` Services**: For these tests, we assume `@app/kimp-core` is working perfectly (as we already tested it). We need to provide mock implementations for all services imported from the core library, such as `SpreadCalculatorService`, `ArbitrageRecordService`, `PortfolioManagerService`, `StrategyHighService`, `LoggingService`, etc.
 
-### 2. Set Up Test Environment
+### 2. Write Unit Test Cases
 
-1.  Create test files for the new services:
-    - `apps/kim-p-feeder/src/price-feed/price-feed.service.spec.ts`
-    - `apps/kim-p-feeder/src/redis/redis-publisher.service.spec.ts`
-    - `apps/kim-p-feeder/src/health/health.controller.spec.ts`
-2.  For each test file, use `@nestjs/testing`'s `Test.createTestingModule` to set up the environment.
-3.  **Mock Dependencies**:
-    - When testing `PriceFeedService`, mock the `RedisPublisherService` and the `ws` library.
-    - When testing `RedisPublisherService`, mock the `ioredis` library.
-    - When testing `HealthController`, mock both `PriceFeedService` and `RedisPublisherService`.
+#### **For `RedisSubscriberService` (or equivalent):**
 
-### 3. Write Unit Test Cases
+- Test that the service correctly subscribes to the `TICKER_UPDATES` channel on initialization.
+- Test that when a mock Redis client emits a message, the service correctly parses it and emits an internal event for other services to hear.
 
-1.  **For `RedisPublisherService`**:
-    - Write a test to ensure it calls the `redis.publish()` method with the correct channel (`TICKER_UPDATES`) and a properly stringified JSON payload when its `publishPriceUpdate` method is called.
-2.  **For `PriceFeedService`**:
-    - Write a test to ensure that when a mock WebSocket emits a 'message' event, the service correctly calls `redisPublisherService.publishPriceUpdate`.
-3.  **For `HealthController`**:
-    - Write a test to check that the `/health` endpoint returns a 200 OK status.
-    - Write another test to verify that if the mocked `RedisPublisherService` reports a disconnected state, the health check response reflects this.
+#### **For `OpportunityScannerService`:**
+
+- Test that when it receives an internal price update event, it calls `spreadCalculatorService.calculateSpread` with the correct arguments.
+- **Scenario 1 (Profitable)**: If the mocked `spreadCalculatorService` returns a valid opportunity object, test that the service correctly calls `tradeExecutorService.initiateArbitrageCycle`.
+- **Scenario 2 (Not Profitable)**: If the mocked `spreadCalculatorService` returns `null`, test that the `tradeExecutorService` is **NOT** called.
+
+#### **For `TradeExecutorService`:**
+
+- **Scenario 1 (Happy Path)**: When `initiateArbitrageCycle` is called with a valid opportunity:
+  - It should first call `portfolioManagerService.checkAvailableFunds`.
+  - Then, it should call `arbitrageRecordService.createArbitrageCycle` to create the DB record.
+  - Then, it should call the appropriate strategy service (e.g., `strategyHighService.executeTrade`).
+  - Verify that `LoggingService.run` is called with the correct `cycleId`.
+- **Scenario 2 (Insufficient Funds)**: If the mocked `portfolioManagerService` indicates insufficient funds, test that the service stops execution and does **NOT** call `arbitrageRecordService` or any strategy services.
+- **Scenario 3 (DB Error)**: If the mocked `arbitrageRecordService` throws an error, test that the error is handled gracefully and the trade does not proceed.
 
 ## Verification
 
-- Run the unit tests for the `kimP-Feeder` package from the project's root directory.
-- The command `yarn test apps/kim-p-feeder` must run, and all new tests should pass successfully.
-- This will confirm that the Feeder is robust and its status is monitorable before we rely on it in other services.
+- Run the unit tests for the `kimP-Initiator` application from the project's root directory.
+- The command `yarn test apps/kim-p-initiator` must run, and all new tests should pass successfully.
+- This will confirm that the "brain" of our system makes correct decisions and interacts properly with our core library.

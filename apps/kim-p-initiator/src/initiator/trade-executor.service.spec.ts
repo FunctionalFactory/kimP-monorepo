@@ -1,20 +1,61 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Logger } from '@nestjs/common';
 import { TradeExecutorService } from './trade-executor.service';
+import { ArbitrageOpportunity } from './opportunity-scanner.service';
+import {
+  ArbitrageRecordService,
+  PortfolioManagerService,
+  LoggingService,
+} from '@app/kimp-core';
 
 describe('TradeExecutorService', () => {
   let service: TradeExecutorService;
+  let arbitrageRecordService: jest.Mocked<ArbitrageRecordService>;
+  let portfolioManagerService: jest.Mocked<PortfolioManagerService>;
+  let loggingService: jest.Mocked<LoggingService>;
 
   beforeEach(async () => {
+    const mockArbitrageRecordService = {
+      createArbitrageCycle: jest.fn(),
+      createTrade: jest.fn(),
+    };
+
+    const mockPortfolioManagerService = {
+      getCurrentInvestmentAmount: jest.fn(),
+    };
+
+    const mockLoggingService = {
+      info: jest.fn(),
+      error: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TradeExecutorService],
+      providers: [
+        TradeExecutorService,
+        {
+          provide: ArbitrageRecordService,
+          useValue: mockArbitrageRecordService,
+        },
+        {
+          provide: PortfolioManagerService,
+          useValue: mockPortfolioManagerService,
+        },
+        {
+          provide: LoggingService,
+          useValue: mockLoggingService,
+        },
+      ],
     }).compile();
 
     service = module.get<TradeExecutorService>(TradeExecutorService);
+    arbitrageRecordService = module.get(ArbitrageRecordService);
+    portfolioManagerService = module.get(PortfolioManagerService);
+    loggingService = module.get(LoggingService);
 
     // Logger를 mock으로 설정
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -26,102 +67,176 @@ describe('TradeExecutorService', () => {
   });
 
   describe('initiateArbitrageCycle', () => {
-    it('should handle normal opportunity', async () => {
-      const opportunity = {
+    const mockOpportunity: ArbitrageOpportunity = {
+      symbol: 'xrp',
+      upbitPrice: 1000,
+      binancePrice: 950,
+      spreadPercent: 5.0,
+      isNormalOpportunity: true,
+      netProfitPercent: 3.5,
+    };
+
+    it('should handle normal opportunity successfully', async () => {
+      // PortfolioManagerService mock 설정
+      portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(
+        1000000,
+      );
+
+      // ArbitrageRecordService mock 설정
+      arbitrageRecordService.createArbitrageCycle.mockResolvedValue({
+        id: 'test-cycle-id',
+        status: 'STARTED',
+        initialInvestmentKrw: 1000000,
+        totalNetProfitPercent: 3.5,
+      } as any);
+
+      arbitrageRecordService.createTrade.mockResolvedValue({
+        id: 'test-trade-id',
+        cycleId: 'test-cycle-id',
+        tradeType: 'HIGH_PREMIUM_BUY',
         symbol: 'xrp',
-        upbit: 1000,
-        binance: 950,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
+        status: 'PENDING',
+      } as any);
+
+      await service.initiateArbitrageCycle(mockOpportunity);
+
+      expect(
+        portfolioManagerService.getCurrentInvestmentAmount,
+      ).toHaveBeenCalled();
+      expect(arbitrageRecordService.createArbitrageCycle).toHaveBeenCalledWith({
+        initialInvestmentKrw: 1000000,
+        totalNetProfitPercent: 3.5,
+      });
+      expect(arbitrageRecordService.createTrade).toHaveBeenCalledWith({
+        cycleId: 'test-cycle-id',
+        tradeType: 'HIGH_PREMIUM_BUY',
+        symbol: 'xrp',
+        investmentKrw: 1000000,
+        netProfitKrw: 35000, // 1000000 * 3.5 / 100
+        details: {
+          upbitPrice: 1000,
+          binancePrice: 950,
+          spreadPercent: 5.0,
+          marketDirection: 'NORMAL',
+          netProfitPercent: 3.5,
         },
-      };
-
-      await service.initiateArbitrageCycle(opportunity);
-
+      });
       expect(Logger.prototype.log).toHaveBeenCalledWith(
         '[xrp] 투자 가능 금액: 1,000,000 KRW',
       );
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        expect.stringContaining('[xrp] 새로운 차익거래 사이클 시작:'),
+        '[xrp] 새로운 차익거래 사이클 시작: test-cycle-id',
       );
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[xrp] Normal 전략 실행 시뮬레이션',
+        '[xrp] Normal 전략 실행',
       );
     });
 
-    it('should handle reverse opportunity', async () => {
-      const opportunity = {
+    it('should handle reverse opportunity successfully', async () => {
+      const reverseOpportunity: ArbitrageOpportunity = {
         symbol: 'trx',
-        upbit: 950,
-        binance: 1000,
-        spread: {
-          normalOpportunity: false,
-          reverseOpportunity: true,
-        },
+        upbitPrice: 950,
+        binancePrice: 1000,
+        spreadPercent: 5.0,
+        isNormalOpportunity: false,
+        netProfitPercent: 2.5,
       };
 
-      await service.initiateArbitrageCycle(opportunity);
+      portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(
+        500000,
+      );
 
+      arbitrageRecordService.createArbitrageCycle.mockResolvedValue({
+        id: 'test-cycle-id-2',
+        status: 'STARTED',
+        initialInvestmentKrw: 500000,
+        totalNetProfitPercent: 2.5,
+      } as any);
+
+      arbitrageRecordService.createTrade.mockResolvedValue({
+        id: 'test-trade-id-2',
+        cycleId: 'test-cycle-id-2',
+        tradeType: 'LOW_PREMIUM_BUY',
+        symbol: 'trx',
+        status: 'PENDING',
+      } as any);
+
+      await service.initiateArbitrageCycle(reverseOpportunity);
+
+      expect(arbitrageRecordService.createTrade).toHaveBeenCalledWith({
+        cycleId: 'test-cycle-id-2',
+        tradeType: 'LOW_PREMIUM_BUY',
+        symbol: 'trx',
+        investmentKrw: 500000,
+        netProfitKrw: 12500, // 500000 * 2.5 / 100
+        details: {
+          upbitPrice: 950,
+          binancePrice: 1000,
+          spreadPercent: 5.0,
+          marketDirection: 'REVERSE',
+          netProfitPercent: 2.5,
+        },
+      });
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[trx] 투자 가능 금액: 1,000,000 KRW',
-      );
-      expect(Logger.prototype.log).toHaveBeenCalledWith(
-        expect.stringContaining('[trx] 새로운 차익거래 사이클 시작:'),
-      );
-      expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[trx] Reverse 전략 실행 시뮬레이션',
+        '[trx] Reverse 전략 실행',
       );
     });
 
-    it('should handle errors gracefully', async () => {
-      const opportunity = {
-        symbol: 'invalid',
-        upbit: 1000,
-        binance: 950,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
-        },
-      };
+    it('should stop execution when insufficient funds', async () => {
+      portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(0);
 
-      // Logger.log를 mock하여 에러를 발생시킴
-      const mockLog = jest
-        .spyOn(Logger.prototype, 'log')
-        .mockImplementation(() => {
-          throw new Error('Test error');
-        });
+      await service.initiateArbitrageCycle(mockOpportunity);
 
-      await service.initiateArbitrageCycle(opportunity);
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        '[xrp] 투자 가능 금액이 없습니다: 0 KRW',
+      );
+      expect(
+        arbitrageRecordService.createArbitrageCycle,
+      ).not.toHaveBeenCalled();
+      expect(arbitrageRecordService.createTrade).not.toHaveBeenCalled();
+    });
+
+    it('should handle database errors gracefully', async () => {
+      portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(
+        1000000,
+      );
+      arbitrageRecordService.createArbitrageCycle.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      await service.initiateArbitrageCycle(mockOpportunity);
 
       expect(Logger.prototype.error).toHaveBeenCalledWith(
-        '트레이드 실패: Test error',
+        '트레이드 실패: Database connection failed',
       );
-
-      // mock 복원
-      mockLog.mockRestore();
+      expect(loggingService.error).toHaveBeenCalledWith(
+        '트레이드 실행 중 오류 발생',
+        expect.any(Error),
+        {
+          service: 'TradeExecutorService',
+          symbol: 'xrp',
+        },
+      );
     });
 
-    it('should generate unique cycle IDs', async () => {
-      const opportunity = {
-        symbol: 'xrp',
-        upbit: 1000,
-        binance: 950,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
-        },
-      };
-
-      await service.initiateArbitrageCycle(opportunity);
-
-      const logCalls = (Logger.prototype.log as jest.Mock).mock.calls;
-      const cycleLogCall = logCalls.find((call) =>
-        call[0].includes('새로운 차익거래 사이클 시작:'),
+    it('should handle portfolio manager errors gracefully', async () => {
+      portfolioManagerService.getCurrentInvestmentAmount.mockRejectedValue(
+        new Error('Portfolio service unavailable'),
       );
 
-      expect(cycleLogCall).toBeDefined();
-      expect(cycleLogCall[0]).toMatch(/cycle_\d+_[a-z0-9]{9}/);
+      await service.initiateArbitrageCycle(mockOpportunity);
+
+      expect(Logger.prototype.error).toHaveBeenCalledWith(
+        '트레이드 실패: Portfolio service unavailable',
+      );
+      expect(loggingService.error).toHaveBeenCalledWith(
+        '트레이드 실행 중 오류 발생',
+        expect.any(Error),
+        {
+          service: 'TradeExecutorService',
+          symbol: 'xrp',
+        },
+      );
     });
   });
 });

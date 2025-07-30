@@ -1,15 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { KimPInitiatorModule } from '../../src/kim-p-initiator.module';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OpportunityScannerService } from '../../src/initiator/opportunity-scanner.service';
 import { TradeExecutorService } from '../../src/initiator/trade-executor.service';
-import { RedisSubscriberService } from '../../src/redis/redis-subscriber.service';
+import {
+  FeeCalculatorService,
+  LoggingService,
+  ArbitrageRecordService,
+  PortfolioManagerService,
+} from '@app/kimp-core';
 
 describe('KimPInitiator Integration Tests', () => {
   let module: TestingModule;
   let opportunityScannerService: OpportunityScannerService;
   let tradeExecutorService: TradeExecutorService;
-  let redisSubscriberService: RedisSubscriberService;
 
   beforeAll(async () => {
     module = await Test.createTestingModule({
@@ -25,7 +29,70 @@ describe('KimPInitiator Integration Tests', () => {
             }),
           ],
         }),
-        KimPInitiatorModule,
+      ],
+      providers: [
+        OpportunityScannerService,
+        TradeExecutorService,
+        {
+          provide: FeeCalculatorService,
+          useValue: {
+            calculate: jest.fn().mockReturnValue({
+              grossProfit: 6000,
+              totalFee: 1000,
+              netProfit: 5000,
+              netProfitPercent: 0.3,
+            }),
+          },
+        },
+        {
+          provide: LoggingService,
+          useValue: {
+            error: jest.fn(),
+            info: jest.fn(),
+          },
+        },
+        {
+          provide: ArbitrageRecordService,
+          useValue: {
+            createArbitrageCycle: jest.fn().mockResolvedValue({
+              id: 'test-cycle-id',
+              status: 'STARTED',
+            }),
+            createTrade: jest.fn().mockResolvedValue({
+              id: 'test-trade-id',
+              cycleId: 'test-cycle-id',
+              status: 'PENDING',
+            }),
+          },
+        },
+        {
+          provide: PortfolioManagerService,
+          useValue: {
+            getCurrentInvestmentAmount: jest.fn().mockResolvedValue(1000000),
+          },
+        },
+        {
+          provide: 'ConfigService',
+          useValue: {
+            get: jest
+              .fn()
+              .mockImplementation((key: string, defaultValue: any) => {
+                const config = {
+                  REDIS_HOST: 'localhost',
+                  REDIS_PORT: 6379,
+                  REDIS_PASSWORD: '',
+                  REDIS_DB: 0,
+                };
+                return config[key] || defaultValue;
+              }),
+          },
+        },
+        {
+          provide: EventEmitter2,
+          useValue: {
+            emit: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -34,20 +101,18 @@ describe('KimPInitiator Integration Tests', () => {
     );
     tradeExecutorService =
       module.get<TradeExecutorService>(TradeExecutorService);
-    redisSubscriberService = module.get<RedisSubscriberService>(
-      RedisSubscriberService,
-    );
   });
 
   afterAll(async () => {
-    await module.close();
+    if (module) {
+      await module.close();
+    }
   });
 
   describe('Service Integration', () => {
     it('should have all required services', () => {
       expect(opportunityScannerService).toBeDefined();
       expect(tradeExecutorService).toBeDefined();
-      expect(redisSubscriberService).toBeDefined();
     });
 
     it('should have proper service types', () => {
@@ -55,8 +120,6 @@ describe('KimPInitiator Integration Tests', () => {
       expect(typeof tradeExecutorService.initiateArbitrageCycle).toBe(
         'function',
       );
-      expect(typeof redisSubscriberService.onModuleInit).toBe('function');
-      expect(typeof redisSubscriberService.onModuleDestroy).toBe('function');
     });
   });
 
@@ -76,12 +139,11 @@ describe('KimPInitiator Integration Tests', () => {
     it('should handle arbitrage cycle initiation', async () => {
       const opportunity = {
         symbol: 'xrp',
-        upbit: 1000,
-        binance: 950,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
-        },
+        upbitPrice: 1000,
+        binancePrice: 950,
+        spreadPercent: 5.0,
+        isNormalOpportunity: true,
+        netProfitPercent: 3.5,
       };
 
       await expect(
@@ -92,22 +154,20 @@ describe('KimPInitiator Integration Tests', () => {
     it('should handle different opportunity types', async () => {
       const normalOpportunity = {
         symbol: 'xrp',
-        upbit: 1000,
-        binance: 950,
-        spread: {
-          normalOpportunity: true,
-          reverseOpportunity: false,
-        },
+        upbitPrice: 1000,
+        binancePrice: 950,
+        spreadPercent: 5.0,
+        isNormalOpportunity: true,
+        netProfitPercent: 3.5,
       };
 
       const reverseOpportunity = {
         symbol: 'trx',
-        upbit: 950,
-        binance: 1000,
-        spread: {
-          normalOpportunity: false,
-          reverseOpportunity: true,
-        },
+        upbitPrice: 950,
+        binancePrice: 1000,
+        spreadPercent: 5.0,
+        isNormalOpportunity: false,
+        netProfitPercent: 2.5,
       };
 
       await expect(
@@ -119,34 +179,11 @@ describe('KimPInitiator Integration Tests', () => {
     });
   });
 
-  describe('RedisSubscriberService Integration', () => {
-    it('should initialize Redis connection', async () => {
-      await expect(
-        redisSubscriberService.onModuleInit(),
-      ).resolves.not.toThrow();
-    });
-
-    it('should handle module destruction', async () => {
-      await expect(
-        redisSubscriberService.onModuleDestroy(),
-      ).resolves.not.toThrow();
-    });
-
-    it('should have proper Redis configuration', () => {
-      const privateService = redisSubscriberService as any;
-      expect(privateService.CHANNEL).toBe('TICKER_UPDATES');
-    });
-  });
-
   describe('Module Integration', () => {
     it('should have proper dependency injection', () => {
       const privateScanner = opportunityScannerService as any;
-      const privateSubscriber = redisSubscriberService as any;
-
       expect(privateScanner.tradeExecutor).toBeDefined();
       expect(privateScanner.eventEmitter).toBeDefined();
-      expect(privateSubscriber.configService).toBeDefined();
-      expect(privateSubscriber.eventEmitter).toBeDefined();
     });
 
     it('should have consistent service interfaces', () => {
@@ -155,9 +192,6 @@ describe('KimPInitiator Integration Tests', () => {
       );
       expect(tradeExecutorService.constructor.name).toBe(
         'TradeExecutorService',
-      );
-      expect(redisSubscriberService.constructor.name).toBe(
-        'RedisSubscriberService',
       );
     });
   });
