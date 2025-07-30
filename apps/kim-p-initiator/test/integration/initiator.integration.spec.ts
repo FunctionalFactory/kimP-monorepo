@@ -9,6 +9,9 @@ import {
   ArbitrageRecordService,
   PortfolioManagerService,
   ErrorHandlerService,
+  DistributedLockService,
+  InvestmentConfigService,
+  ExchangeService,
 } from '@app/kimp-core';
 
 describe('KimPInitiator Integration Tests', () => {
@@ -76,6 +79,34 @@ describe('KimPInitiator Integration Tests', () => {
           provide: ErrorHandlerService,
           useValue: {
             handleError: jest.fn(),
+          },
+        },
+        {
+          provide: DistributedLockService,
+          useValue: {
+            acquireLock: jest.fn().mockResolvedValue(true),
+            releaseLock: jest.fn(),
+          },
+        },
+        {
+          provide: InvestmentConfigService,
+          useValue: {
+            getInvestmentConfig: jest.fn().mockReturnValue({
+              minSpreadPercent: 0.5,
+              exchangeRateUsdtKrw: 1300,
+            }),
+          },
+        },
+        {
+          provide: PortfolioManagerService,
+          useValue: {
+            getCurrentInvestmentAmount: jest.fn().mockResolvedValue(1000000),
+          },
+        },
+        {
+          provide: ExchangeService,
+          useValue: {
+            // 필요한 메서드들 추가
           },
         },
         {

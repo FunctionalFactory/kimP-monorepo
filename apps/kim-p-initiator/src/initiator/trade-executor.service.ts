@@ -5,6 +5,7 @@ import {
   PortfolioManagerService,
   LoggingService,
   ErrorHandlerService,
+  DistributedLockService,
 } from '@app/kimp-core';
 
 @Injectable()
@@ -16,9 +17,26 @@ export class TradeExecutorService {
     private readonly portfolioManagerService: PortfolioManagerService,
     private readonly loggingService: LoggingService,
     private readonly errorHandlerService: ErrorHandlerService,
+    private readonly distributedLockService: DistributedLockService,
   ) {}
 
   async initiateArbitrageCycle(opportunity: ArbitrageOpportunity) {
+    // 분산 잠금 키 생성
+    const lockKey = `lock:${opportunity.symbol}`;
+    const lockTTL = 30000; // 30초 잠금
+
+    // 분산 잠금 획득 시도
+    const lockAcquired = await this.distributedLockService.acquireLock(
+      lockKey,
+      lockTTL,
+    );
+    if (!lockAcquired) {
+      this.logger.warn(
+        `[${opportunity.symbol}] 중복 처리 방지: 이미 처리 중인 기회입니다`,
+      );
+      return;
+    }
+
     try {
       // 1단계: 자금 확인
       const investmentAmount =
@@ -126,6 +144,10 @@ export class TradeExecutorService {
         service: 'TradeExecutorService',
         symbol: opportunity.symbol,
       });
+    } finally {
+      // 분산 잠금 해제 (성공/실패 관계없이 항상 실행)
+      await this.distributedLockService.releaseLock(lockKey);
+      this.logger.debug(`[${opportunity.symbol}] 분산 잠금 해제: ${lockKey}`);
     }
   }
 }

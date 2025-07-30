@@ -1,42 +1,46 @@
-# Mission Briefing: Implement Final Business Logic for `kimP-Initiator`
+# Mission Briefing: Make `kimP-Initiator` Production-Ready
 
 ## Overall Goal
 
-- To replace the placeholder/simulation logic in the `kimP-Initiator` application with the actual business logic.
-- The goal is to make the application fully functional so that it passes all the unit tests we've already written.
+- To refactor the `kimP-Initiator` application to resolve critical issues identified in the architecture review.
+- We will externalize all hard-coded configuration values and implement a robust distributed locking mechanism to support multi-instance scaling.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/implement-initiator-logic`.
+- Ensure all work is done on the `feature/initiator-production-ready` branch.
 
 ## Step-by-Step Instructions for AI
 
-### 1. Refactor `OpportunityScannerService`
+### Part 1: Externalize Hard-Coded Configurations
 
-1.  Open `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`.
-2.  Modify the service to listen for price update events from the `RedisSubscriberService`.
-3.  Instead of simple placeholder logic, it must now call the real `spreadCalculatorService.calculateSpread()` method from our `@app/kimp-core` library.
-4.  This method performs the full 3-stage filtering (fees, volume, slippage).
-5.  If `calculateSpread` returns a valid, profitable opportunity, the scanner must call the `tradeExecutorService.initiateArbitrageCycle()` method, passing the opportunity data.
+1.  **Analyze `OpportunityScannerService`**: Open `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`. It currently contains hard-coded values for spread percentage, investment amount, and exchange rates.
+2.  **Integrate `InvestmentConfigService`**:
+    - Inject `InvestmentConfigService` from `@app/kimp-core` into the `OpportunityScannerService`.
+    - Replace all hard-coded values with calls to this service. For example, `spreadPercent < 0.5` should become `spreadPercent < config.minSpreadPercent`.
+    - The investment amount should be fetched using `portfolioManagerService.getCurrentInvestmentAmount()`.
+    - The exchange rate must be fetched from `exchangeService.getUSDTtoKRW()`.
+3.  **Update `kimp-core`**:
+    - Add any new required configuration fields (like `minSpreadPercent`) to `InvestmentConfigService` in `packages/kimp-core/`.
+    - Update the root `.env.example` file with these new variables.
 
-### 2. Refactor `TradeExecutorService`
+### Part 2: Implement Distributed Locking
 
-This is the most critical part. We will implement the real logic that the unit tests were designed to verify.
-
-1.  Open `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
-2.  Implement the `initiateArbitrageCycle(opportunity)` method.
-3.  **Logic Sequence**:
-    a. First, call `this.portfolioManagerService.checkAvailableFunds()` to ensure we can trade. If not, log and return.
-    b. Next, call `this.arbitrageRecordService.createArbitrageCycle()` and `createTrade()` to generate the new cycle and the initial 'PROFIT' trade record in the database. The cycle status must be set to `AWAITING_REBALANCE`.
-    c. **CRITICAL**: Wrap the entire trading execution logic (steps d and e) inside `LoggingService.run({ cycleId: newCycle.id }, async () => { ... })` to ensure all subsequent logs are tagged with the cycle ID.
-    d. Call the appropriate strategy service from `@app/kimp-core` (e.g., `this.strategyHighService.handleHighPremiumFlow()`) to execute the real buy-transfer-sell sequence.
-    e. If the strategy service throws an error, catch it, use `this.errorHandlerService`, and update the cycle's status to `FAILED`.
+1.  **Create `DistributedLockService`**: In `packages/kimp-core/src/utils/service/`, create a new `distributed-lock.service.ts` and its corresponding module. This service will use Redis (`ioredis`) to implement a distributed lock. It should have two methods:
+    - `acquireLock(key: string, ttl: number): Promise<boolean>`: Uses `redis.set(key, 'locked', 'PX', ttl, 'NX')` to acquire a lock. Returns `true` on success.
+    - `releaseLock(key: string): Promise<void>`: Deletes the key from Redis.
+2.  **Integrate Lock into `TradeExecutorService`**:
+    - Open `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
+    - Inject the new `DistributedLockService`.
+    - At the beginning of the `initiateArbitrageCycle` method, call `acquireLock` with a unique key for the opportunity (e.g., `lock:${opportunity.symbol}`).
+    - If the lock is **not** acquired, log it and immediately `return` to prevent duplicate processing.
+    - Use a `try...finally` block to ensure `releaseLock` is **always** called at the end of the method, whether the trade succeeds or fails. This is critical to prevent permanent locks.
 
 ## Verification
 
-- After implementation, all existing unit tests for `kimP-Initiator` must pass. Run `yarn test apps/kim-p-initiator`.
-- Run the `Feeder` and `Initiator` apps together.
-- When a real arbitrage opportunity occurs, the system should now perform the following actions, which can be verified in the logs and the database:
-  1.  A new cycle is created in the `arbitrage_cycles` table with `status: 'AWAITING_REBALANCE'`.
-  2.  A new trade is created in the `trades` table with `trade_type: 'PROFIT'`.
-  3.  All logs related to this process are tagged with the new `[CYCLE:...]` ID.
+- All existing unit tests for `kimP-Initiator` must still pass.
+- Create new unit tests for the `DistributedLockService` in `kimp-core`.
+- **Manual Test**:
+  1.  Run the `Feeder` and `Initiator`.
+  2.  Check the logs to confirm that configuration values are being loaded from the config service, not hard-coded.
+  3.  When an opportunity is found, check Redis (using `redis-cli`) to see if a lock key (e.g., `lock:XRP`) is created with a TTL.
+  4.  Verify that the lock key is deleted after the trade logic completes.

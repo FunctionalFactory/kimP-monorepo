@@ -35,3 +35,4 @@ export * from './utils/middleware/logging.middleware';
 export * from './utils/service/withdrawal-constraint.service';
 export * from './utils/service/portfolio-manager.service';
 export * from './utils/service/retry-manager.service';
+export * from './utils/service/distributed-lock.service';

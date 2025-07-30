@@ -16,6 +16,7 @@ import { LoggingService } from './handler/logging.service';
 // Service services
 import { WithdrawalConstraintService } from './service/withdrawal-constraint.service';
 import { RetryManagerService } from './service/retry-manager.service';
+import { DistributedLockService } from './service/distributed-lock.service';
 
 @Module({
   imports: [AppConfigModule, DatabaseModule],
@@ -33,6 +34,7 @@ import { RetryManagerService } from './service/retry-manager.service';
     // Service services
     WithdrawalConstraintService,
     RetryManagerService,
+    DistributedLockService,
   ],
   exports: [
     // Calculator services
@@ -48,6 +50,7 @@ import { RetryManagerService } from './service/retry-manager.service';
     // Service services
     WithdrawalConstraintService,
     RetryManagerService,
+    DistributedLockService,
   ],
 })
 export class UtilsModule {}

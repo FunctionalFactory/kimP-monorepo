@@ -7,6 +7,7 @@ import {
   PortfolioManagerService,
   LoggingService,
   ErrorHandlerService,
+  DistributedLockService,
 } from '@app/kimp-core';
 
 describe('TradeExecutorService', () => {
@@ -15,6 +16,7 @@ describe('TradeExecutorService', () => {
   let portfolioManagerService: jest.Mocked<PortfolioManagerService>;
   let loggingService: jest.Mocked<LoggingService>;
   let errorHandlerService: jest.Mocked<ErrorHandlerService>;
+  let distributedLockService: jest.Mocked<DistributedLockService>;
 
   beforeEach(async () => {
     const mockArbitrageRecordService = {
@@ -33,6 +35,11 @@ describe('TradeExecutorService', () => {
 
     const mockErrorHandlerService = {
       handleError: jest.fn(),
+    };
+
+    const mockDistributedLockService = {
+      acquireLock: jest.fn(),
+      releaseLock: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -54,6 +61,10 @@ describe('TradeExecutorService', () => {
           provide: ErrorHandlerService,
           useValue: mockErrorHandlerService,
         },
+        {
+          provide: DistributedLockService,
+          useValue: mockDistributedLockService,
+        },
       ],
     }).compile();
 
@@ -62,6 +73,7 @@ describe('TradeExecutorService', () => {
     portfolioManagerService = module.get(PortfolioManagerService);
     loggingService = module.get(LoggingService);
     errorHandlerService = module.get(ErrorHandlerService);
+    distributedLockService = module.get(DistributedLockService);
 
     // Logger를 mock으로 설정
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
@@ -88,6 +100,10 @@ describe('TradeExecutorService', () => {
     };
 
     it('should handle normal opportunity successfully', async () => {
+      // DistributedLockService mock 설정
+      distributedLockService.acquireLock.mockResolvedValue(true);
+      distributedLockService.releaseLock.mockResolvedValue();
+
       // PortfolioManagerService mock 설정
       portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(
         1000000,
@@ -135,17 +151,21 @@ describe('TradeExecutorService', () => {
         },
       });
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[xrp] 투자 가능 금액: 1,000,000 KRW',
+        '[xrp] 자금 확인 완료 - 투자 가능 금액: 1,000,000 KRW',
       );
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[xrp] 새로운 차익거래 사이클 시작: test-cycle-id',
+        '[xrp] 새로운 차익거래 사이클 시작: test-cycle-id, 초기 거래: test-trade-id',
       );
       expect(Logger.prototype.log).toHaveBeenCalledWith(
-        '[xrp] Normal 전략 실행',
+        '[xrp] HIGH_PREMIUM 전략 실행 시뮬레이션',
       );
     });
 
     it('should handle reverse opportunity successfully', async () => {
+      // DistributedLockService mock 설정
+      distributedLockService.acquireLock.mockResolvedValue(true);
+      distributedLockService.releaseLock.mockResolvedValue();
+
       const reverseOpportunity: ArbitrageOpportunity = {
         symbol: 'trx',
         upbitPrice: 950,
@@ -197,6 +217,10 @@ describe('TradeExecutorService', () => {
     });
 
     it('should stop execution when insufficient funds', async () => {
+      // DistributedLockService mock 설정
+      distributedLockService.acquireLock.mockResolvedValue(true);
+      distributedLockService.releaseLock.mockResolvedValue();
+
       portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(0);
 
       await service.initiateArbitrageCycle(mockOpportunity);
@@ -211,6 +235,10 @@ describe('TradeExecutorService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
+      // DistributedLockService mock 설정
+      distributedLockService.acquireLock.mockResolvedValue(true);
+      distributedLockService.releaseLock.mockResolvedValue();
+
       portfolioManagerService.getCurrentInvestmentAmount.mockResolvedValue(
         1000000,
       );
@@ -234,6 +262,10 @@ describe('TradeExecutorService', () => {
     });
 
     it('should handle portfolio manager errors gracefully', async () => {
+      // DistributedLockService mock 설정
+      distributedLockService.acquireLock.mockResolvedValue(true);
+      distributedLockService.releaseLock.mockResolvedValue();
+
       portfolioManagerService.getCurrentInvestmentAmount.mockRejectedValue(
         new Error('Portfolio service unavailable'),
       );

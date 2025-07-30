@@ -4,13 +4,22 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OpportunityScannerService } from './opportunity-scanner.service';
 import { TradeExecutorService } from './trade-executor.service';
 import { PriceUpdateData } from '../redis/redis-subscriber.service';
-import { FeeCalculatorService, LoggingService } from '@app/kimp-core';
+import {
+  FeeCalculatorService,
+  LoggingService,
+  InvestmentConfigService,
+  PortfolioManagerService,
+  ExchangeService,
+} from '@app/kimp-core';
 
 describe('OpportunityScannerService', () => {
   let service: OpportunityScannerService;
   let tradeExecutor: jest.Mocked<TradeExecutorService>;
   let feeCalculatorService: jest.Mocked<FeeCalculatorService>;
   let loggingService: jest.Mocked<LoggingService>;
+  let investmentConfigService: jest.Mocked<InvestmentConfigService>;
+  let portfolioManagerService: jest.Mocked<PortfolioManagerService>;
+  let exchangeService: jest.Mocked<ExchangeService>;
 
   beforeEach(async () => {
     const mockTradeExecutor = {
@@ -23,6 +32,21 @@ describe('OpportunityScannerService', () => {
 
     const mockLoggingService = {
       error: jest.fn(),
+    };
+
+    const mockInvestmentConfigService = {
+      getInvestmentConfig: jest.fn().mockReturnValue({
+        minSpreadPercent: 0.5,
+        exchangeRateUsdtKrw: 1300,
+      }),
+    };
+
+    const mockPortfolioManagerService = {
+      getCurrentInvestmentAmount: jest.fn().mockResolvedValue(1000000),
+    };
+
+    const mockExchangeService = {
+      // 필요한 메서드들 추가
     };
 
     const mockEventEmitter = {
@@ -45,6 +69,18 @@ describe('OpportunityScannerService', () => {
           useValue: mockLoggingService,
         },
         {
+          provide: InvestmentConfigService,
+          useValue: mockInvestmentConfigService,
+        },
+        {
+          provide: PortfolioManagerService,
+          useValue: mockPortfolioManagerService,
+        },
+        {
+          provide: ExchangeService,
+          useValue: mockExchangeService,
+        },
+        {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
@@ -55,6 +91,9 @@ describe('OpportunityScannerService', () => {
     tradeExecutor = module.get(TradeExecutorService);
     feeCalculatorService = module.get(FeeCalculatorService);
     loggingService = module.get(LoggingService);
+    investmentConfigService = module.get(InvestmentConfigService);
+    portfolioManagerService = module.get(PortfolioManagerService);
+    exchangeService = module.get(ExchangeService);
 
     // Logger를 mock으로 설정
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});

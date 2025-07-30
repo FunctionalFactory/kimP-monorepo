@@ -6,6 +6,8 @@ export interface InvestmentConfig {
   fixedAmountKrw: number;
   percentage: number;
   initialCapitalKrw: number;
+  minSpreadPercent: number;
+  exchangeRateUsdtKrw: number;
 }
 
 @Injectable()
@@ -40,18 +42,24 @@ export class InvestmentConfigService {
       this.configService.get<number>('INVESTMENT_PERCENTAGE') || 10;
     const initialCapitalKrw =
       this.configService.get<number>('INITIAL_CAPITAL_KRW') || 1000000;
+    const minSpreadPercent =
+      this.configService.get<number>('MIN_SPREAD_PERCENT') || 0.5;
+    const exchangeRateUsdtKrw =
+      this.configService.get<number>('EXCHANGE_RATE_USDT_KRW') || 1300;
 
     this.cachedConfig = {
       strategy: strategy as 'FIXED_AMOUNT' | 'PERCENTAGE' | 'FULL_CAPITAL',
       fixedAmountKrw,
       percentage,
       initialCapitalKrw,
+      minSpreadPercent,
+      exchangeRateUsdtKrw,
     };
 
     this.lastConfigUpdate = now;
 
     this.logger.debug(
-      `[INVESTMENT_CONFIG] 설정 로드: ${strategy}, 고정금액: ${fixedAmountKrw.toLocaleString()} KRW, 비율: ${percentage}%`,
+      `[INVESTMENT_CONFIG] 설정 로드: ${strategy}, 고정금액: ${fixedAmountKrw.toLocaleString()} KRW, 비율: ${percentage}%, 최소스프레드: ${minSpreadPercent}%, 환율: ${exchangeRateUsdtKrw} KRW/USDT`,
     );
 
     return this.cachedConfig;

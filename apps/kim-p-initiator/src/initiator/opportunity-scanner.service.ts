@@ -2,7 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { TradeExecutorService } from './trade-executor.service';
 import { PriceUpdateData } from '../redis/redis-subscriber.service';
-import { FeeCalculatorService, LoggingService } from '@app/kimp-core';
+import {
+  FeeCalculatorService,
+  LoggingService,
+  InvestmentConfigService,
+  PortfolioManagerService,
+  ExchangeService,
+} from '@app/kimp-core';
 
 export interface ArbitrageOpportunity {
   symbol: string;
@@ -23,6 +29,9 @@ export class OpportunityScannerService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly feeCalculatorService: FeeCalculatorService,
     private readonly loggingService: LoggingService,
+    private readonly investmentConfigService: InvestmentConfigService,
+    private readonly portfolioManagerService: PortfolioManagerService,
+    private readonly exchangeService: ExchangeService,
   ) {}
 
   onModuleInit() {
@@ -42,7 +51,7 @@ export class OpportunityScannerService implements OnModuleInit {
 
     if (upbit && binance) {
       // 스프레드 계산
-      const opportunity = this.calculateSpread(symbol, upbit, binance);
+      const opportunity = await this.calculateSpread(symbol, upbit, binance);
 
       if (opportunity) {
         this.logger.log(
@@ -53,25 +62,31 @@ export class OpportunityScannerService implements OnModuleInit {
     }
   }
 
-  private calculateSpread(
+  private async calculateSpread(
     symbol: string,
     upbitPrice: number,
     binancePrice: number,
-  ): ArbitrageOpportunity | null {
+  ): Promise<ArbitrageOpportunity | null> {
     // 1단계: 기본 스프레드 계산
     const spreadPercent =
       Math.abs((upbitPrice - binancePrice) / upbitPrice) * 100;
 
-    // 최소 스프레드 필터링 (0.5% 이상)
-    if (spreadPercent < 0.5) {
+    // 설정에서 최소 스프레드 가져오기
+    const config = this.investmentConfigService.getInvestmentConfig();
+    if (spreadPercent < config.minSpreadPercent) {
+      this.logger.debug(
+        `[필터링] ${symbol} 스프레드 부족: ${spreadPercent.toFixed(2)}% < ${config.minSpreadPercent}%`,
+      );
       return null;
     }
 
     const isNormalOpportunity = upbitPrice > binancePrice;
 
-    // 2단계: 수수료 계산을 위한 설정
-    const rate = 1300; // USD/KRW 환율 (실제로는 동적으로 가져와야 함)
-    const buyAmount = 1000000 / binancePrice; // 100만원 투자 시뮬레이션
+    // 2단계: 동적 설정값 가져오기
+    const rate = config.exchangeRateUsdtKrw; // 설정에서 환율 가져오기
+    const investmentAmount =
+      await this.portfolioManagerService.getCurrentInvestmentAmount();
+    const buyAmount = investmentAmount / binancePrice; // 실제 투자 가능 금액 사용
 
     try {
       // 3단계: FeeCalculatorService를 통한 3단계 필터링 (수수료, 거래량, 슬리피지)
