@@ -1,107 +1,50 @@
-# Mission Briefing: Implement Full Business Logic for `kimP-Initiator`
+# Mission Briefing: Unit Tests for `kimP-Finalizer` Application
 
 ## Overall Goal
 
-- To replace all placeholder and simulation logic in the `kimP-Initiator` application with fully functional, production-ready business logic.
-- The application must correctly use services from the `@app/kimp-core` library to detect opportunities, manage state, and execute the first leg of an arbitrage trade.
+- To write comprehensive unit tests for the `kimP-Finalizer` application before implementing its final business logic.
+- The tests will define the expected behavior for processing and completing arbitrage cycles, ensuring the implementation will be robust and correct.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/implement-initiator-logic` branch.
+- Ensure all work is done on the `test/unit-finalizer-app` branch.
 
 ## Step-by-Step Instructions for AI
 
-### 1. Refactor `OpportunityScannerService` for Real Logic
+### 1. Set Up Test Environment
 
-1.  Open `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`.
-2.  Ensure it correctly injects `SpreadCalculatorService` from `@app/kimp-core`.
-3.  The logic that listens for price updates must call `spreadCalculatorService.calculateSpread()` to perform the full 3-stage filtering (fees, volume, slippage).
-4.  If a valid, profitable opportunity is returned, it must call `tradeExecutorService.initiateArbitrageCycle()`, passing the opportunity data.
+1.  Create a test file: `apps/kim-p-finalizer/src/finalizer/finalizer.service.spec.ts`.
+2.  Use `@nestjs/testing`'s `Test.createTestingModule` to set up the environment.
+3.  **Mock ALL `kimp-core` Services**: We need to mock all services that `FinalizerService` will depend on, including `ArbitrageRecordService`, `RetryManagerService`, `PortfolioLogService`, `SpreadCalculatorService`, and the strategy services.
 
-### 2. Implement `TradeExecutorService` with Real Logic
+### 2. Write Unit Test Cases for `FinalizerService`
 
-1.  Open `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
-2.  Implement the `initiateArbitrageCycle(opportunity)` method with the following sequence:
-    a. **Distributed Lock**: Inject `DistributedLockService` from `@app/kimp-core`. Call `acquireLock()` with a unique key (e.g., `lock:${opportunity.symbol}`). If the lock is not acquired, log it and return immediately.
-    b. Use a `try...finally` block to ensure `releaseLock()` is always called.
-    c. **Inside the `try` block**:
-    i. **Check Funds**: Call `portfolioManagerService.getCurrentInvestmentAmount()` to get the investment amount.
-    ii. **Create DB Records**: Call `arbitrageRecordService.createArbitrageCycle()` and `createTrade()` to create the initial records. The cycle status must be `AWAITING_REBALANCE`.
-    iii. **Set Logging Context**: Wrap the trade execution in `LoggingService.run({ cycleId: newCycle.id }, ...)`.
-    iv. **Execute Trade**: Call the actual strategy service (e.g., `strategyHighService.handleHighPremiumFlow()`) to perform the live buy-transfer-sell sequence.
-    v. If the trade fails, catch the error, use `errorHandlerService`, and update the cycle status to `FAILED`.
+Write Jest test cases (`it(...)`) for the `processPendingCycles` method with the following scenarios:
 
-### 3. Externalize All Configurations
+- **Scenario 1 (Happy Path - Cycle Completion)**:
+  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
+  - Mock the rebalance planning logic to return a profitable rebalancing option.
+  - Mock the strategy service (`StrategyLowService`, etc.) to return a successful trade result.
+  - **Verify** that `arbitrageRecordService.updateArbitrageCycle` is called to set the final status to `COMPLETED`.
+  - **Verify** that `portfolioLogService.createLog` is called to record the new portfolio balance.
 
-1.  Review all services in `kimP-Initiator`. **There must be no hard-coded values** (like `rate = 1300` or `spreadPercent < 0.5`).
-2.  All strategic values must be fetched from `InvestmentConfigService`.
-3.  All real-time market data (like exchange rates) must be fetched from `ExchangeService`.
+- **Scenario 2 (No Pending Cycles)**:
+  - Mock `arbitrageRecordService.findAndLockNextCycle` to return `null`.
+  - **Verify** that the service does not perform any other actions and exits gracefully.
 
-### 4. Write Unit Tests for New Logic
+- **Scenario 3 (Trade Execution Fails)**:
+  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
+  - Mock the strategy service to throw an error during trade execution.
+  - **Verify** that `retryManagerService.handleCycleFailure` is called with the correct cycle and error information.
+  - **Verify** that the cycle status is NOT set to `COMPLETED`.
 
-1.  Update the existing test files in `apps/kim-p-initiator/` to reflect the new, real logic.
-2.  **For `TradeExecutorService.spec.ts`**:
-    - Add a test case to verify that `distributedLockService.acquireLock` is called first.
-    - Add a test case to verify that `releaseLock` is called even if the trade execution fails.
-    - Verify that the actual strategy services (`StrategyHighService`, etc.) are called with the correct arguments.
-3.  **For `OpportunityScannerService.spec.ts`**:
-    - Verify that `spreadCalculatorService.calculateSpread` is being called correctly.
+- **Scenario 4 (No Profitable Rebalance Option)**:
+  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
+  - Mock the rebalance planning logic to find no suitable (cost-effective) rebalancing options.
+  - **Verify** that the service handles this case gracefully (e.g., logs a warning and potentially calls `retryManagerService` to try again later).
 
 ## Verification
 
-- Run all unit tests for the `kimP-Initiator` application: `yarn test apps/kim-p-initiator`. All tests must pass.
-- Run the full system (`Feeder`, `Initiator`).
-- When a real opportunity occurs, verify through logs and the database that a live trade sequence is initiated and a cycle record is correctly created with the `AWAITING_REBALANCE` status.# Mission Briefing: Implement Full Business Logic for `kimP-Initiator`
-
-## Overall Goal
-
-- To replace all placeholder and simulation logic in the `kimP-Initiator` application with fully functional, production-ready business logic.
-- The application must correctly use services from the `@app/kimp-core` library to detect opportunities, manage state, and execute the first leg of an arbitrage trade.
-
-## Current Branch
-
-- Ensure all work is done on the `feature/implement-initiator-logic` branch.
-
-## Step-by-Step Instructions for AI
-
-### 1. Refactor `OpportunityScannerService` for Real Logic
-
-1.  Open `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`.
-2.  Ensure it correctly injects `SpreadCalculatorService` from `@app/kimp-core`.
-3.  The logic that listens for price updates must call `spreadCalculatorService.calculateSpread()` to perform the full 3-stage filtering (fees, volume, slippage).
-4.  If a valid, profitable opportunity is returned, it must call `tradeExecutorService.initiateArbitrageCycle()`, passing the opportunity data.
-
-### 2. Implement `TradeExecutorService` with Real Logic
-
-1.  Open `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
-2.  Implement the `initiateArbitrageCycle(opportunity)` method with the following sequence:
-    a. **Distributed Lock**: Inject `DistributedLockService` from `@app/kimp-core`. Call `acquireLock()` with a unique key (e.g., `lock:${opportunity.symbol}`). If the lock is not acquired, log it and return immediately.
-    b. Use a `try...finally` block to ensure `releaseLock()` is always called.
-    c. **Inside the `try` block**:
-    i. **Check Funds**: Call `portfolioManagerService.getCurrentInvestmentAmount()` to get the investment amount.
-    ii. **Create DB Records**: Call `arbitrageRecordService.createArbitrageCycle()` and `createTrade()` to create the initial records. The cycle status must be `AWAITING_REBALANCE`.
-    iii. **Set Logging Context**: Wrap the trade execution in `LoggingService.run({ cycleId: newCycle.id }, ...)`.
-    iv. **Execute Trade**: Call the actual strategy service (e.g., `strategyHighService.handleHighPremiumFlow()`) to perform the live buy-transfer-sell sequence.
-    v. If the trade fails, catch the error, use `errorHandlerService`, and update the cycle status to `FAILED`.
-
-### 3. Externalize All Configurations
-
-1.  Review all services in `kimP-Initiator`. **There must be no hard-coded values** (like `rate = 1300` or `spreadPercent < 0.5`).
-2.  All strategic values must be fetched from `InvestmentConfigService`.
-3.  All real-time market data (like exchange rates) must be fetched from `ExchangeService`.
-
-### 4. Write Unit Tests for New Logic
-
-1.  Update the existing test files in `apps/kim-p-initiator/` to reflect the new, real logic.
-2.  **For `TradeExecutorService.spec.ts`**:
-    - Add a test case to verify that `distributedLockService.acquireLock` is called first.
-    - Add a test case to verify that `releaseLock` is called even if the trade execution fails.
-    - Verify that the actual strategy services (`StrategyHighService`, etc.) are called with the correct arguments.
-3.  **For `OpportunityScannerService.spec.ts`**:
-    - Verify that `spreadCalculatorService.calculateSpread` is being called correctly.
-
-## Verification
-
-- Run all unit tests for the `kimP-Initiator` application: `yarn test apps/kim-p-initiator`. All tests must pass.
-- Run the full system (`Feeder`, `Initiator`).
-- When a real opportunity occurs, verify through logs and the database that a live trade sequence is initiated and a cycle record is correctly created with the `AWAITING_REBALANCE` status.
+- Run the unit tests for the `kimP-Finalizer` application from the project's root directory.
+- The command `yarn test apps/kim-p-finalizer` must run, and all new tests should pass successfully.
+- This will provide a clear, test-driven specification for implementing the final business logic.
