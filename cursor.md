@@ -1,46 +1,69 @@
-# Mission Briefing: Make `kimP-Initiator` Production-Ready
+# Mission Briefing: Final Implementation Review for `kimP-Initiator`
 
 ## Overall Goal
 
-- To refactor the `kimP-Initiator` application to resolve critical issues identified in the architecture review.
-- We will externalize all hard-coded configuration values and implement a robust distributed locking mechanism to support multi-instance scaling.
+- To conduct a final, detailed review of the `kimP-Initiator` application, focusing on the recent production-readiness improvements.
+- This review will verify the correct implementation of externalized configurations and the new Redis-based distributed locking mechanism.
 
 ## Current Branch
 
-- Ensure all work is done on the `feature/initiator-production-ready` branch.
+- Ensure all work is done on the `review/initiator-final-implementation` branch.
 
-## Step-by-Step Instructions for AI
+## Step-by-Step Instructions for AI: Create a `review.md` File
 
-### Part 1: Externalize Hard-Coded Configurations
+Please create a new file named `review.md` and fill it with a detailed analysis based on the following checklist.
 
-1.  **Analyze `OpportunityScannerService`**: Open `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`. It currently contains hard-coded values for spread percentage, investment amount, and exchange rates.
-2.  **Integrate `InvestmentConfigService`**:
-    - Inject `InvestmentConfigService` from `@app/kimp-core` into the `OpportunityScannerService`.
-    - Replace all hard-coded values with calls to this service. For example, `spreadPercent < 0.5` should become `spreadPercent < config.minSpreadPercent`.
-    - The investment amount should be fetched using `portfolioManagerService.getCurrentInvestmentAmount()`.
-    - The exchange rate must be fetched from `exchangeService.getUSDTtoKRW()`.
-3.  **Update `kimp-core`**:
-    - Add any new required configuration fields (like `minSpreadPercent`) to `InvestmentConfigService` in `packages/kimp-core/`.
-    - Update the root `.env.example` file with these new variables.
+### 1. Review of Externalized Configurations
 
-### Part 2: Implement Distributed Locking
+- **File**: `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`
+- **Verification**:
+  - [ ] Confirm that hard-coded values (like spread percentage, investment amount, rate) have been completely removed.
+  - [ ] Verify that the service now correctly injects and uses `InvestmentConfigService`, `PortfolioManagerService`, and `ExchangeService` to get these values dynamically at runtime.
+- **Potential Issues**:
+  - Are there any default or fallback values used if a configuration is missing? How are they handled?
+  - Is the dependency injection for these configuration services clean and correct?
 
-1.  **Create `DistributedLockService`**: In `packages/kimp-core/src/utils/service/`, create a new `distributed-lock.service.ts` and its corresponding module. This service will use Redis (`ioredis`) to implement a distributed lock. It should have two methods:
-    - `acquireLock(key: string, ttl: number): Promise<boolean>`: Uses `redis.set(key, 'locked', 'PX', ttl, 'NX')` to acquire a lock. Returns `true` on success.
-    - `releaseLock(key: string): Promise<void>`: Deletes the key from Redis.
-2.  **Integrate Lock into `TradeExecutorService`**:
-    - Open `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
-    - Inject the new `DistributedLockService`.
-    - At the beginning of the `initiateArbitrageCycle` method, call `acquireLock` with a unique key for the opportunity (e.g., `lock:${opportunity.symbol}`).
-    - If the lock is **not** acquired, log it and immediately `return` to prevent duplicate processing.
-    - Use a `try...finally` block to ensure `releaseLock` is **always** called at the end of the method, whether the trade succeeds or fails. This is critical to prevent permanent locks.
+### 2. Review of Distributed Locking Mechanism
 
-## Verification
+- **Files**: `packages/kimp-core/src/utils/service/distributed-lock.service.ts` and `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
+- **Verification**:
+  - [ ] Does `DistributedLockService` correctly use the Redis `SET ... NX PX` command to ensure atomic lock acquisition?
+  - [ ] In `TradeExecutorService`, is `acquireLock` called _before_ any critical logic (like creating DB records or executing trades)?
+  - [ ] Is `releaseLock` guaranteed to be called using a `try...finally` block, ensuring locks are released even if the trade logic fails?
+- **Potential Issues**:
+  - **Lock Key Granularity**: The current lock key is based on the symbol (e.g., `lock:XRP`). Is this sufficient? What if there are two different profitable opportunities for XRP on two different exchanges in the future? Should the lock key be more specific (e.g., `lock:XRP:UPBIT-BINANCE`)?
+  - **TTL (Time-To-Live)**: A TTL is set on the lock. What happens if the trade execution takes longer than the TTL? The lock would expire, and another instance could start a duplicate trade. Is the current TTL appropriate?
 
-- All existing unit tests for `kimP-Initiator` must still pass.
-- Create new unit tests for the `DistributedLockService` in `kimp-core`.
-- **Manual Test**:
-  1.  Run the `Feeder` and `Initiator`.
-  2.  Check the logs to confirm that configuration values are being loaded from the config service, not hard-coded.
-  3.  When an opportunity is found, check Redis (using `redis-cli`) to see if a lock key (e.g., `lock:XRP`) is created with a TTL.
-  4.  Verify that the lock key is deleted after the trade logic completes.
+### 3. Re-evaluation and Final Score
+
+- Based on your review, provide an updated architecture score for `kimP-Initiator`.
+- Justify the new score by highlighting the strengths of the current implementation and any remaining weaknesses.
+- Provide a final assessment of whether the `kimP-Initiator` is now considered fully **production-ready**.
+
+### Example `review.md` Structure:
+
+Please structure your output in a markdown file named `review.md` similar to this:
+
+```markdown
+# Final Review: kimP-Initiator Production Readiness
+
+## 1. Externalized Configurations: VERIFIED
+
+- **Analysis**: ...
+- **Strengths**: ...
+- **Potential Issues**: ...
+
+## 2. Distributed Locking: VERIFIED
+
+- **Analysis**: ...
+- **Strengths**: ...
+- **Potential Issues**: ...
+
+## 3. Final Architecture Score: X/10
+
+- **Justification**: ...
+
+## Overall Assessment: Production-Ready (or with minor caveats)
+
+- **Conclusion**: ...
+```
