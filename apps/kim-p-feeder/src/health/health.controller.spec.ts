@@ -10,6 +10,7 @@ describe('HealthController', () => {
 
   beforeEach(async () => {
     const mockPriceFeedService = {
+      getConnectionStatus: jest.fn(),
       getWatchedSymbols: jest.fn(),
     };
 
@@ -46,12 +47,10 @@ describe('HealthController', () => {
   describe('getHealth', () => {
     it('should return ok status when all dependencies are connected', async () => {
       // Mock WebSocket connected status
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = new Set(['socket1', 'socket2']);
-      privateService.totalRequiredConnections = 2;
+      priceFeedService.getConnectionStatus.mockReturnValue('connected');
 
       // Mock Redis connected status
-      redisPublisherService.getRedisStatus.mockReturnValue('ready');
+      redisPublisherService.getRedisStatus.mockReturnValue('connected');
 
       const result = await controller.getHealth();
 
@@ -61,17 +60,16 @@ describe('HealthController', () => {
           webSockets: 'connected',
           redis: 'connected',
         },
+        uptime: expect.any(Number),
       });
     });
 
     it('should return error status when WebSockets are disconnected', async () => {
       // Mock WebSocket disconnected status
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = new Set(['socket1']); // Only 1 connected, need 2
-      privateService.totalRequiredConnections = 2;
+      priceFeedService.getConnectionStatus.mockReturnValue('disconnected');
 
       // Mock Redis connected status
-      redisPublisherService.getRedisStatus.mockReturnValue('ready');
+      redisPublisherService.getRedisStatus.mockReturnValue('connected');
 
       const result = await controller.getHealth();
 
@@ -81,17 +79,16 @@ describe('HealthController', () => {
           webSockets: 'disconnected',
           redis: 'connected',
         },
+        uptime: expect.any(Number),
       });
     });
 
     it('should return error status when Redis is disconnected', async () => {
       // Mock WebSocket connected status
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = new Set(['socket1', 'socket2']);
-      privateService.totalRequiredConnections = 2;
+      priceFeedService.getConnectionStatus.mockReturnValue('connected');
 
       // Mock Redis disconnected status
-      redisPublisherService.getRedisStatus.mockReturnValue('end');
+      redisPublisherService.getRedisStatus.mockReturnValue('disconnected');
 
       const result = await controller.getHealth();
 
@@ -101,17 +98,16 @@ describe('HealthController', () => {
           webSockets: 'connected',
           redis: 'disconnected',
         },
+        uptime: expect.any(Number),
       });
     });
 
     it('should return error status when both dependencies are disconnected', async () => {
       // Mock WebSocket disconnected status
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = new Set(['socket1']); // Only 1 connected, need 2
-      privateService.totalRequiredConnections = 2;
+      priceFeedService.getConnectionStatus.mockReturnValue('disconnected');
 
       // Mock Redis disconnected status
-      redisPublisherService.getRedisStatus.mockReturnValue('end');
+      redisPublisherService.getRedisStatus.mockReturnValue('disconnected');
 
       const result = await controller.getHealth();
 
@@ -121,37 +117,17 @@ describe('HealthController', () => {
           webSockets: 'disconnected',
           redis: 'disconnected',
         },
+        uptime: expect.any(Number),
       });
     });
 
-    it('should handle WebSocket status check errors gracefully', async () => {
-      // Mock WebSocket status check to throw error
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = undefined; // This will cause an error
-
-      // Mock Redis connected status
-      redisPublisherService.getRedisStatus.mockReturnValue('ready');
-
-      const result = await controller.getHealth();
-
-      expect(result).toEqual({
-        status: 'error',
-        dependencies: {
-          webSockets: 'disconnected',
-          redis: 'connected',
-        },
+    it('should handle exceptions gracefully', async () => {
+      // Mock service methods to throw errors
+      priceFeedService.getConnectionStatus.mockImplementation(() => {
+        throw new Error('Service unavailable');
       });
-    });
-
-    it('should handle Redis status check errors gracefully', async () => {
-      // Mock WebSocket connected status
-      const privateService = priceFeedService as any;
-      privateService.connectedSockets = new Set(['socket1', 'socket2']);
-      privateService.totalRequiredConnections = 2;
-
-      // Mock Redis status check to throw error
       redisPublisherService.getRedisStatus.mockImplementation(() => {
-        throw new Error('Redis connection failed');
+        throw new Error('Redis unavailable');
       });
 
       const result = await controller.getHealth();
@@ -159,10 +135,23 @@ describe('HealthController', () => {
       expect(result).toEqual({
         status: 'error',
         dependencies: {
-          webSockets: 'connected',
+          webSockets: 'disconnected',
           redis: 'disconnected',
         },
+        uptime: expect.any(Number),
       });
+    });
+
+    it('should include uptime in response', async () => {
+      // Mock both services as connected
+      priceFeedService.getConnectionStatus.mockReturnValue('connected');
+      redisPublisherService.getRedisStatus.mockReturnValue('connected');
+
+      const result = await controller.getHealth();
+
+      expect(result.uptime).toBeDefined();
+      expect(typeof result.uptime).toBe('number');
+      expect(result.uptime).toBeGreaterThan(0);
     });
   });
 });

@@ -54,13 +54,13 @@ describe('RedisPublisherService', () => {
   });
 
   describe('getRedisStatus', () => {
-    it('should return Redis status', () => {
+    it('should return connected when Redis is ready', () => {
       const privateService = service as any;
       privateService.redisClient = mockRedisClient;
       mockRedisClient.status = 'ready';
 
       const status = service.getRedisStatus();
-      expect(status).toBe('ready');
+      expect(status).toBe('connected');
     });
 
     it('should return disconnected when Redis client is not available', () => {

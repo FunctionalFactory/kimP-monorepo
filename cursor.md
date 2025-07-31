@@ -1,69 +1,73 @@
-# Mission Briefing: Final Implementation Review for `kimP-Initiator`
+# Mission Briefing: Implement Health Check Endpoint for `kimP-Feeder`
 
 ## Overall Goal
 
-- To conduct a final, detailed review of the `kimP-Initiator` application, focusing on the recent production-readiness improvements.
-- This review will verify the correct implementation of externalized configurations and the new Redis-based distributed locking mechanism.
+- To implement a `/health` endpoint in the `kimP-Feeder` application as recommended by the architecture review.
+- This will provide a way to externally monitor the status of the Feeder's critical connections (WebSockets and Redis), enhancing the system's operational stability.
 
 ## Current Branch
 
-- Ensure all work is done on the `review/initiator-final-implementation` branch.
+- Ensure all work is done on the `feature/feeder-health-check` branch.
 
-## Step-by-Step Instructions for AI: Create a `review.md` File
+## Step-by-Step Instructions for AI
 
-Please create a new file named `review.md` and fill it with a detailed analysis based on the following checklist.
+### 1. Enhance Core Services to Report Status
 
-### 1. Review of Externalized Configurations
+1.  **`PriceFeedService`**:
+    - Open `apps/kim-p-feeder/src/price-feed/price-feed.service.ts`.
+    - Add a new public method `getConnectionStatus(): 'connected' | 'disconnected'`.
+    - This method should return `'connected'` if the `allConnectionsEstablished` BehaviorSubject currently holds `true`, and `'disconnected'` otherwise.
+2.  **`RedisPublisherService`**:
+    - Open `apps/kim-p-feeder/src/redis/redis-publisher.service.ts`.
+    - Add a new public method `getRedisStatus(): 'connected' | 'disconnected'`.
+    - This method should check the status of the underlying `ioredis` client (e.g., `this.redis.status`) and return `'connected'` or `'disconnected'` accordingly.
 
-- **File**: `apps/kim-p-initiator/src/initiator/opportunity-scanner.service.ts`
-- **Verification**:
-  - [ ] Confirm that hard-coded values (like spread percentage, investment amount, rate) have been completely removed.
-  - [ ] Verify that the service now correctly injects and uses `InvestmentConfigService`, `PortfolioManagerService`, and `ExchangeService` to get these values dynamically at runtime.
-- **Potential Issues**:
-  - Are there any default or fallback values used if a configuration is missing? How are they handled?
-  - Is the dependency injection for these configuration services clean and correct?
+### 2. Create the Health Module
 
-### 2. Review of Distributed Locking Mechanism
+1.  In `apps/kim-p-feeder/src/`, create a new `health` directory.
+2.  Inside it, create `health.controller.ts` and `health.module.ts`.
+3.  **`HealthController`**:
+    - Create a controller with a `@Get('/health')` endpoint.
+    - Inject both `PriceFeedService` and `RedisPublisherService`.
+    - The handler for the `/health` endpoint should call the new status methods on both services and return a JSON object in the specified format. If any service reports a disconnected state, the top-level `status` should be `'error'`.
 
-- **Files**: `packages/kimp-core/src/utils/service/distributed-lock.service.ts` and `apps/kim-p-initiator/src/initiator/trade-executor.service.ts`.
-- **Verification**:
-  - [ ] Does `DistributedLockService` correctly use the Redis `SET ... NX PX` command to ensure atomic lock acquisition?
-  - [ ] In `TradeExecutorService`, is `acquireLock` called _before_ any critical logic (like creating DB records or executing trades)?
-  - [ ] Is `releaseLock` guaranteed to be called using a `try...finally` block, ensuring locks are released even if the trade logic fails?
-- **Potential Issues**:
-  - **Lock Key Granularity**: The current lock key is based on the symbol (e.g., `lock:XRP`). Is this sufficient? What if there are two different profitable opportunities for XRP on two different exchanges in the future? Should the lock key be more specific (e.g., `lock:XRP:UPBIT-BINANCE`)?
-  - **TTL (Time-To-Live)**: A TTL is set on the lock. What happens if the trade execution takes longer than the TTL? The lock would expire, and another instance could start a duplicate trade. Is the current TTL appropriate?
+    ```typescript
+    // Example implementation in HealthController
+    @Get('/health')
+    checkHealth() {
+      const wsStatus = this.priceFeedService.getConnectionStatus();
+      const redisStatus = this.redisPublisherService.getRedisStatus();
 
-### 3. Re-evaluation and Final Score
+      const isOk = wsStatus === 'connected' && redisStatus === 'connected';
 
-- Based on your review, provide an updated architecture score for `kimP-Initiator`.
-- Justify the new score by highlighting the strengths of the current implementation and any remaining weaknesses.
-- Provide a final assessment of whether the `kimP-Initiator` is now considered fully **production-ready**.
+      return {
+        status: isOk ? 'ok' : 'error',
+        dependencies: {
+          webSockets: wsStatus,
+          redis: redisStatus,
+        },
+        uptime: process.uptime(),
+      };
+    }
+    ```
 
-### Example `review.md` Structure:
+4.  **`HealthModule`**: This module should import any modules needed by the `HealthController` (like `PriceFeedModule`, `RedisModule`) and declare the controller.
 
-Please structure your output in a markdown file named `review.md` similar to this:
+### 3. Assemble the Application
 
-```markdown
-# Final Review: kimP-Initiator Production Readiness
+1.  Open `apps/kim-p-feeder/src/kim-p-feeder.module.ts`.
+2.  Import the new `HealthModule`.
 
-## 1. Externalized Configurations: VERIFIED
+### 4. Write Unit Tests
 
-- **Analysis**: ...
-- **Strengths**: ...
-- **Potential Issues**: ...
+1.  Create a new test file: `apps/kim-p-feeder/src/health/health.controller.spec.ts`.
+2.  Write unit tests for the `HealthController`.
+    - Test that it returns a `status: 'ok'` when both mocked services report `'connected'`.
+    - Test that it returns a `status: 'error'` if either of the mocked services reports `'disconnected'`.
 
-## 2. Distributed Locking: VERIFIED
+## Verification
 
-- **Analysis**: ...
-- **Strengths**: ...
-- **Potential Issues**: ...
-
-## 3. Final Architecture Score: X/10
-
-- **Justification**: ...
-
-## Overall Assessment: Production-Ready (or with minor caveats)
-
-- **Conclusion**: ...
-```
+- Run the unit tests for the `kimP-Feeder` application: `yarn test apps/kim-p-feeder`. All tests must pass.
+- Run the application: `yarn start:dev kim-p-feeder`.
+- Open a web browser or use a tool like Postman to access `http://localhost:3001/health`.
+- Verify that the JSON response is returned correctly and reflects the actual connection statuses.

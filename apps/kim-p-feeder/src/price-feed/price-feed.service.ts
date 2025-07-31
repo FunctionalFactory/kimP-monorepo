@@ -8,6 +8,7 @@ import {
 import * as WebSocket from 'ws';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import { BehaviorSubject } from 'rxjs';
 import { ExchangeService } from '@app/kimp-core';
 import { RedisPublisherService } from '../redis/redis-publisher.service';
 
@@ -37,6 +38,8 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
 
   private connectedSockets = new Set<string>();
   private totalRequiredConnections = 0;
+
+  private allConnectionsEstablished = new BehaviorSubject<boolean>(false);
 
   private upbitVolumes = new Map<string, number>();
   private upbitOrderBooks = new Map<string, any>();
@@ -136,9 +139,19 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
     return this._watchedSymbolsConfig;
   }
 
+  public getConnectionStatus(): 'connected' | 'disconnected' {
+    return this.allConnectionsEstablished.getValue()
+      ? 'connected'
+      : 'disconnected';
+  }
+
   private checkAndEmitConnectionStatus() {
     const isReady =
       this.connectedSockets.size === this.totalRequiredConnections;
+
+    // allConnectionsEstablished BehaviorSubject 업데이트
+    this.allConnectionsEstablished.next(isReady);
+
     if (isReady) {
       this.logger.log(
         '✅ All WebSocket connections established. System is ready.',

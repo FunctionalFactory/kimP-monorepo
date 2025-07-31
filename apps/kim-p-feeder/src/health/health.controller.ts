@@ -8,6 +8,7 @@ interface HealthResponse {
     webSockets: 'connected' | 'disconnected';
     redis: 'connected' | 'disconnected';
   };
+  uptime: number;
 }
 
 @Controller('health')
@@ -21,10 +22,10 @@ export class HealthController {
   async getHealth(): Promise<HealthResponse> {
     try {
       // WebSocket 연결 상태 확인
-      const webSocketStatus = this.getWebSocketStatus();
+      const webSocketStatus = this.priceFeedService.getConnectionStatus();
 
       // Redis 연결 상태 확인
-      const redisStatus = this.getRedisStatus();
+      const redisStatus = this.redisPublisherService.getRedisStatus();
 
       // 전체 상태 결정
       const overallStatus =
@@ -38,6 +39,7 @@ export class HealthController {
           webSockets: webSocketStatus,
           redis: redisStatus,
         },
+        uptime: process.uptime(),
       };
     } catch {
       return {
@@ -46,35 +48,8 @@ export class HealthController {
           webSockets: 'disconnected',
           redis: 'disconnected',
         },
+        uptime: process.uptime(),
       };
-    }
-  }
-
-  private getWebSocketStatus(): 'connected' | 'disconnected' {
-    try {
-      // PriceFeedService의 WebSocket 연결 상태 확인
-      const privateService = this.priceFeedService as any;
-      const connectedSockets = privateService.connectedSockets;
-      const totalRequiredConnections = privateService.totalRequiredConnections;
-
-      if (connectedSockets && totalRequiredConnections) {
-        return connectedSockets.size === totalRequiredConnections
-          ? 'connected'
-          : 'disconnected';
-      }
-
-      return 'disconnected';
-    } catch {
-      return 'disconnected';
-    }
-  }
-
-  private getRedisStatus(): 'connected' | 'disconnected' {
-    try {
-      const redisStatus = this.redisPublisherService.getRedisStatus();
-      return redisStatus === 'ready' ? 'connected' : 'disconnected';
-    } catch {
-      return 'disconnected';
     }
   }
 }

@@ -134,8 +134,8 @@ export class RedisPublisherService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  public getRedisStatus(): string {
-    return this.redisClient?.status || 'disconnected';
+  public getRedisStatus(): 'connected' | 'disconnected' {
+    return this.redisClient?.status === 'ready' ? 'connected' : 'disconnected';
   }
 
   public async ping(): Promise<string | null> {
