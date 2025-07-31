@@ -25,7 +25,8 @@ export class ArbitrageRecordService {
     data: Partial<ArbitrageCycle>,
   ): Promise<ArbitrageCycle> {
     const newCycle = this.arbitrageCycleRepository.create(data);
-    newCycle.status = 'STARTED'; // 초기 상태
+    // 전달된 status가 있으면 사용하고, 없으면 기본값 'STARTED' 사용
+    newCycle.status = data.status || 'STARTED';
     const savedCycle = await this.arbitrageCycleRepository.save(newCycle);
 
     // 캐시에 추가
