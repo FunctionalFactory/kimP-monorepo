@@ -3,7 +3,7 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { TradeExecutorService } from './trade-executor.service';
 import { PriceUpdateData } from '../redis/redis-subscriber.service';
 import {
-  FeeCalculatorService,
+  SpreadCalculatorService,
   LoggingService,
   InvestmentConfigService,
   PortfolioManagerService,
@@ -27,7 +27,7 @@ export class OpportunityScannerService implements OnModuleInit {
   constructor(
     private readonly tradeExecutor: TradeExecutorService,
     private readonly eventEmitter: EventEmitter2,
-    private readonly feeCalculatorService: FeeCalculatorService,
+    private readonly spreadCalculatorService: SpreadCalculatorService,
     private readonly loggingService: LoggingService,
     private readonly investmentConfigService: InvestmentConfigService,
     private readonly portfolioManagerService: PortfolioManagerService,
@@ -50,7 +50,7 @@ export class OpportunityScannerService implements OnModuleInit {
     const binance = this.lastPrices[symbol].binance;
 
     if (upbit && binance) {
-      // 스프레드 계산
+      // SpreadCalculatorService를 사용한 3단계 필터링
       const opportunity = await this.calculateSpread(symbol, upbit, binance);
 
       if (opportunity) {
@@ -67,59 +67,35 @@ export class OpportunityScannerService implements OnModuleInit {
     upbitPrice: number,
     binancePrice: number,
   ): Promise<ArbitrageOpportunity | null> {
-    // 1단계: 기본 스프레드 계산
-    const spreadPercent =
-      Math.abs((upbitPrice - binancePrice) / upbitPrice) * 100;
-
-    // 설정에서 최소 스프레드 가져오기
-    const config = this.investmentConfigService.getInvestmentConfig();
-    if (spreadPercent < config.minSpreadPercent) {
-      this.logger.debug(
-        `[필터링] ${symbol} 스프레드 부족: ${spreadPercent.toFixed(2)}% < ${config.minSpreadPercent}%`,
-      );
-      return null;
-    }
-
-    const isNormalOpportunity = upbitPrice > binancePrice;
-
-    // 2단계: 동적 설정값 가져오기
-    const rate = config.exchangeRateUsdtKrw; // 설정에서 환율 가져오기
-    const investmentAmount =
-      await this.portfolioManagerService.getCurrentInvestmentAmount();
-    const buyAmount = investmentAmount / binancePrice; // 실제 투자 가능 금액 사용
-
     try {
-      // 3단계: FeeCalculatorService를 통한 3단계 필터링 (수수료, 거래량, 슬리피지)
-      const feeResult = this.feeCalculatorService.calculate({
-        symbol,
-        amount: buyAmount,
-        upbitPrice,
-        binancePrice,
-        rate,
-        tradeDirection: isNormalOpportunity
-          ? 'HIGH_PREMIUM_SELL_UPBIT'
-          : 'LOW_PREMIUM_SELL_BINANCE',
-      });
+      // 투자 가능 금액 가져오기
+      const investmentAmount =
+        await this.portfolioManagerService.getCurrentInvestmentAmount();
 
-      // 수익성 필터링 (순수익이 양수여야 함)
-      if (feeResult.netProfitPercent <= 0) {
-        this.logger.debug(
-          `[필터링] ${symbol} 수익성 부족: ${feeResult.netProfitPercent.toFixed(2)}%`,
-        );
+      if (investmentAmount <= 0) {
+        this.logger.debug(`[${symbol}] 투자 가능 금액이 없습니다`);
         return null;
       }
 
-      this.logger.log(
-        `[기회감지] ${symbol} 수익성 확인: ${feeResult.netProfitPercent.toFixed(2)}%`,
-      );
-
-      return {
+      // SpreadCalculatorService를 통한 3단계 필터링 (수수료, 거래량, 슬리피지)
+      const spreadResult = await this.spreadCalculatorService.calculateSpread({
         symbol,
         upbitPrice,
         binancePrice,
-        spreadPercent,
-        isNormalOpportunity,
-        netProfitPercent: feeResult.netProfitPercent,
+        investmentAmount,
+      });
+
+      if (!spreadResult) {
+        return null;
+      }
+
+      return {
+        symbol: spreadResult.symbol,
+        upbitPrice: spreadResult.upbitPrice,
+        binancePrice: spreadResult.binancePrice,
+        spreadPercent: spreadResult.spreadPercent,
+        isNormalOpportunity: spreadResult.isNormalOpportunity,
+        netProfitPercent: spreadResult.netProfitPercent,
       };
     } catch (error) {
       this.loggingService.error(

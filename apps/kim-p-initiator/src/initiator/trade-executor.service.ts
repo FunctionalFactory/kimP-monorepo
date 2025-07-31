@@ -6,6 +6,8 @@ import {
   LoggingService,
   ErrorHandlerService,
   DistributedLockService,
+  StrategyHighService,
+  StrategyLowService,
 } from '@app/kimp-core';
 
 @Injectable()
@@ -18,6 +20,8 @@ export class TradeExecutorService {
     private readonly loggingService: LoggingService,
     private readonly errorHandlerService: ErrorHandlerService,
     private readonly distributedLockService: DistributedLockService,
+    private readonly strategyHighService: StrategyHighService,
+    private readonly strategyLowService: StrategyLowService,
   ) {}
 
   async initiateArbitrageCycle(opportunity: ArbitrageOpportunity) {
@@ -97,21 +101,37 @@ export class TradeExecutorService {
           symbol: opportunity.symbol,
         });
 
-        // 5단계: 전략 실행 (시뮬레이션)
+        // 5단계: 실제 전략 실행
         try {
+          let strategySuccess = false;
+
           if (opportunity.isNormalOpportunity) {
-            this.logger.log(
-              `[${opportunity.symbol}] HIGH_PREMIUM 전략 실행 시뮬레이션`,
-            );
-            // 실제로는 this.strategyHighService.handleHighPremiumFlow() 호출
+            this.logger.log(`[${opportunity.symbol}] HIGH_PREMIUM 전략 실행`);
+            strategySuccess =
+              await this.strategyHighService.handleHighPremiumFlow({
+                symbol: opportunity.symbol,
+                investmentAmount,
+                upbitPrice: opportunity.upbitPrice,
+                binancePrice: opportunity.binancePrice,
+                cycleId,
+              });
           } else {
-            this.logger.log(
-              `[${opportunity.symbol}] LOW_PREMIUM 전략 실행 시뮬레이션`,
-            );
-            // 실제로는 this.strategyLowService.handleLowPremiumFlow() 호출
+            this.logger.log(`[${opportunity.symbol}] LOW_PREMIUM 전략 실행`);
+            strategySuccess =
+              await this.strategyLowService.handleLowPremiumFlow({
+                symbol: opportunity.symbol,
+                investmentAmount,
+                upbitPrice: opportunity.upbitPrice,
+                binancePrice: opportunity.binancePrice,
+                cycleId,
+              });
           }
 
-          this.logger.log(`[${opportunity.symbol}] 전략 실행 완료`);
+          if (strategySuccess) {
+            this.logger.log(`[${opportunity.symbol}] 전략 실행 완료`);
+          } else {
+            throw new Error('전략 실행 실패');
+          }
         } catch (strategyError) {
           this.logger.error(
             `[${opportunity.symbol}] 전략 실행 실패: ${strategyError.message}`,

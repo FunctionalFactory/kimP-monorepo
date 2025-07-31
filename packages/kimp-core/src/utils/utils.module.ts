@@ -1,56 +1,50 @@
 // packages/kimp-core/src/utils/utils.module.ts
 import { Module } from '@nestjs/common';
 import { AppConfigModule } from '../config/config.module';
+import { ExchangeModule } from '../exchange/exchange.module';
 import { DatabaseModule } from '../db/database.module';
-
-// Calculator services
 import { FeeCalculatorService } from './calculator/fee-calculator.service';
 import { SlippageCalculatorService } from './calculator/slippage-calculator.service';
-
-// External services
-import { TelegramService } from './external/telegram.service';
-
-// Handler services
+import { SpreadCalculatorService } from './calculator/spread-calculator.service';
 import { LoggingService } from './handler/logging.service';
-
-// Service services
-import { WithdrawalConstraintService } from './service/withdrawal-constraint.service';
+import { ErrorHandlerService } from './handler/error-handler.service';
+import { TelegramService } from './external/telegram.service';
+import { PortfolioManagerService } from './service/portfolio-manager.service';
 import { RetryManagerService } from './service/retry-manager.service';
+import { WithdrawalConstraintService } from './service/withdrawal-constraint.service';
 import { DistributedLockService } from './service/distributed-lock.service';
+import { StrategyHighService } from './service/strategy-high.service';
+import { StrategyLowService } from './service/strategy-low.service';
 
 @Module({
-  imports: [AppConfigModule, DatabaseModule],
+  imports: [AppConfigModule, ExchangeModule, DatabaseModule],
   providers: [
-    // Calculator services
     FeeCalculatorService,
     SlippageCalculatorService,
-
-    // External services
-    TelegramService,
-
-    // Handler services
+    SpreadCalculatorService,
     LoggingService,
-
-    // Service services
-    WithdrawalConstraintService,
+    ErrorHandlerService,
+    TelegramService,
+    PortfolioManagerService,
     RetryManagerService,
+    WithdrawalConstraintService,
     DistributedLockService,
+    StrategyHighService,
+    StrategyLowService,
   ],
   exports: [
-    // Calculator services
     FeeCalculatorService,
     SlippageCalculatorService,
-
-    // External services
-    TelegramService,
-
-    // Handler services
+    SpreadCalculatorService,
     LoggingService,
-
-    // Service services
-    WithdrawalConstraintService,
+    ErrorHandlerService,
+    TelegramService,
+    PortfolioManagerService,
     RetryManagerService,
+    WithdrawalConstraintService,
     DistributedLockService,
+    StrategyHighService,
+    StrategyLowService,
   ],
 })
 export class UtilsModule {}

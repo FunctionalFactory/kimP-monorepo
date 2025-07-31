@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OpportunityScannerService } from '../../src/initiator/opportunity-scanner.service';
 import { TradeExecutorService } from '../../src/initiator/trade-executor.service';
 import {
-  FeeCalculatorService,
+  SpreadCalculatorService,
   LoggingService,
   ArbitrageRecordService,
   PortfolioManagerService,
@@ -12,6 +12,8 @@ import {
   DistributedLockService,
   InvestmentConfigService,
   ExchangeService,
+  StrategyHighService,
+  StrategyLowService,
 } from '@app/kimp-core';
 
 describe('KimPInitiator Integration Tests', () => {
@@ -38,13 +40,18 @@ describe('KimPInitiator Integration Tests', () => {
         OpportunityScannerService,
         TradeExecutorService,
         {
-          provide: FeeCalculatorService,
+          provide: SpreadCalculatorService,
           useValue: {
-            calculate: jest.fn().mockReturnValue({
-              grossProfit: 6000,
-              totalFee: 1000,
-              netProfit: 5000,
-              netProfitPercent: 0.3,
+            calculateSpread: jest.fn().mockResolvedValue({
+              symbol: 'xrp',
+              upbitPrice: 1000,
+              binancePrice: 950,
+              spreadPercent: 5.26,
+              isNormalOpportunity: true,
+              netProfitPercent: 3.5,
+              totalFee: 5000,
+              slippageImpact: 0.1,
+              volumeCheck: true,
             }),
           },
         },
@@ -107,6 +114,18 @@ describe('KimPInitiator Integration Tests', () => {
           provide: ExchangeService,
           useValue: {
             // 필요한 메서드들 추가
+          },
+        },
+        {
+          provide: StrategyHighService,
+          useValue: {
+            handleHighPremiumFlow: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: StrategyLowService,
+          useValue: {
+            handleLowPremiumFlow: jest.fn().mockResolvedValue(true),
           },
         },
         {
