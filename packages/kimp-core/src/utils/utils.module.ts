@@ -15,6 +15,7 @@ import { WithdrawalConstraintService } from './service/withdrawal-constraint.ser
 import { DistributedLockService } from './service/distributed-lock.service';
 import { StrategyHighService } from './service/strategy-high.service';
 import { StrategyLowService } from './service/strategy-low.service';
+import { SettingsService } from './service/settings.service';
 
 @Module({
   imports: [AppConfigModule, ExchangeModule, DatabaseModule],
@@ -31,6 +32,7 @@ import { StrategyLowService } from './service/strategy-low.service';
     DistributedLockService,
     StrategyHighService,
     StrategyLowService,
+    SettingsService,
   ],
   exports: [
     FeeCalculatorService,
@@ -45,6 +47,7 @@ import { StrategyLowService } from './service/strategy-low.service';
     DistributedLockService,
     StrategyHighService,
     StrategyLowService,
+    SettingsService,
   ],
 })
 export class UtilsModule {}

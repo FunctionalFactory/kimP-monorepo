@@ -1,50 +1,77 @@
-# Mission Briefing: Unit Tests for `kimP-Finalizer` Application
+# Mission Briefing: Implement Advanced Features - Real-time Control & Backtesting
 
 ## Overall Goal
 
-- To write comprehensive unit tests for the `kimP-Finalizer` application before implementing its final business logic.
-- The tests will define the expected behavior for processing and completing arbitrage cycles, ensuring the implementation will be robust and correct.
+- To enhance the kimP system with two advanced features:
+  1.  **Real-time Strategy Control**: Allow users to adjust key strategy parameters (like entry premium) via an API without restarting the system.
+  2.  **Historical Backtesting System**: Enable simulation of the system's performance using user-provided historical price data.
 
 ## Current Branch
 
-- Ensure all work is done on the `test/unit-finalizer-app` branch.
+- Ensure all work is done on the `feature/advanced-controls-and-backtesting` branch.
 
-## Step-by-Step Instructions for AI
+---
 
-### 1. Set Up Test Environment
+## **Part 1: Real-time Strategy Control**
 
-1.  Create a test file: `apps/kim-p-finalizer/src/finalizer/finalizer.service.spec.ts`.
-2.  Use `@nestjs/testing`'s `Test.createTestingModule` to set up the environment.
-3.  **Mock ALL `kimp-core` Services**: We need to mock all services that `FinalizerService` will depend on, including `ArbitrageRecordService`, `RetryManagerService`, `PortfolioLogService`, `SpreadCalculatorService`, and the strategy services.
+### Step 1.1: Create DB-based Settings System in `kimp-core`
 
-### 2. Write Unit Test Cases for `FinalizerService`
+1.  **New Entity**: In `packages/kimp-core/src/db/entities/`, create a new `system-setting.entity.ts`. This table will store key-value pairs (e.g., `key: 'INITIATOR_MIN_SPREAD'`, `value: '0.5'`).
+2.  **New Service**: In `packages/kimp-core/src/utils/service/`, create a new `settings.service.ts`.
+    - This service will read settings from the `system_settings` table.
+    - Implement a caching mechanism (e.g., cache settings for 60 seconds) to avoid frequent DB queries.
+    - Provide methods like `getSetting(key: string)` and `updateSetting(key: string, value: string)`.
 
-Write Jest test cases (`it(...)`) for the `processPendingCycles` method with the following scenarios:
+### Step 1.2: Create a Settings API Endpoint
 
-- **Scenario 1 (Happy Path - Cycle Completion)**:
-  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
-  - Mock the rebalance planning logic to return a profitable rebalancing option.
-  - Mock the strategy service (`StrategyLowService`, etc.) to return a successful trade result.
-  - **Verify** that `arbitrageRecordService.updateArbitrageCycle` is called to set the final status to `COMPLETED`.
-  - **Verify** that `portfolioLogService.createLog` is called to record the new portfolio balance.
+1.  We will need a new application to act as a BFF (Backend for Frontend). Generate a new app using the Nest CLI: `nest generate app kimP-Dashboard-BE`.
+2.  In this new app, create a `SettingsController` with two endpoints:
+    - `GET /api/settings`: Fetches all current settings using the new `SettingsService`.
+    - `PUT /api/settings`: Updates one or more settings in the database using the `SettingsService`.
 
-- **Scenario 2 (No Pending Cycles)**:
-  - Mock `arbitrageRecordService.findAndLockNextCycle` to return `null`.
-  - **Verify** that the service does not perform any other actions and exits gracefully.
+### Step 1.3: Refactor `Initiator` and `Finalizer`
 
-- **Scenario 3 (Trade Execution Fails)**:
-  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
-  - Mock the strategy service to throw an error during trade execution.
-  - **Verify** that `retryManagerService.handleCycleFailure` is called with the correct cycle and error information.
-  - **Verify** that the cycle status is NOT set to `COMPLETED`.
+1.  Modify `OpportunityScannerService` in `kimP-Initiator` and `RebalancePlannerService` in `kimP-Finalizer`.
+2.  Instead of injecting `InvestmentConfigService` for strategy values, inject the new `SettingsService`.
+3.  Replace calls like `config.minSpreadPercent` with `await this.settingsService.getSetting('INITIATOR_MIN_SPREAD')`.
 
-- **Scenario 4 (No Profitable Rebalance Option)**:
-  - Mock `arbitrageRecordService.findAndLockNextCycle` to return a sample cycle.
-  - Mock the rebalance planning logic to find no suitable (cost-effective) rebalancing options.
-  - **Verify** that the service handles this case gracefully (e.g., logs a warning and potentially calls `retryManagerService` to try again later).
+---
+
+## **Part 2: Historical Data Backtesting System**
+
+### Step 2.1: Implement a CSV Data Importer
+
+1.  In the `kimP-Dashboard-BE` application, create a new `BacktestingModule`.
+2.  Inside it, create a `CsvParsingService` to parse the provided OHLCV CSV files.
+3.  Create a `BacktestingController` with a `POST /api/backtest/upload-data` endpoint that accepts CSV file uploads.
+4.  This endpoint will use the `CsvParsingService` and `ArbitrageRecordService` (from `kimp-core`) to save the parsed historical data into the `historical_price` entity we designed. Map `candle_date_time_kst` to `timestamp` and `trade_price` to `price`.
+
+### Step 2.2: Enhance "Backtesting Mode" in `kimP-Feeder`
+
+1.  Modify the `PriceFeedService` in `apps/kim-p-feeder/`.
+2.  When `FEEDER_MODE` is `backtest`, the service must:
+    a. Query all data from the `historical_prices` table, ordered by `timestamp` ascending.
+    b. Loop through the results and publish each row's `price` data to the `TICKER_UPDATES` Redis channel.
+    c. Implement a simple delay mechanism (e.g., `await new Promise(res => setTimeout(res, 100))`) between each publish to simulate a real-time feed rather than publishing all data at once.
+
+### Step 2.3: Implement Backtest Reporting API
+
+1.  In the `BacktestingController` of `kimP-Dashboard-BE`, create a `GET /api/backtest-results` endpoint.
+2.  This endpoint will query the `arbitrage_cycles` and `portfolio_logs` tables.
+3.  It should calculate and return a summary report containing key metrics:
+    - Total Profit / Loss
+    - Return on Investment (ROI)
+    - Total Number of Trades
+    - Win Rate (%)
+    - A list of all completed trades with timestamps and profits.
 
 ## Verification
 
-- Run the unit tests for the `kimP-Finalizer` application from the project's root directory.
-- The command `yarn test apps/kim-p-finalizer` must run, and all new tests should pass successfully.
-- This will provide a clear, test-driven specification for implementing the final business logic.
+- **For Real-time Control**:
+  - Run all apps. Use a tool like Postman to hit the new `PUT /api/settings` endpoint to change the minimum spread.
+  - Observe the `Initiator` logs to confirm that it starts using the new spread value for its calculations.
+- **For Backtesting**:
+  - Manually insert some sample historical price data into the `historical_prices` table.
+  - Run the `Feeder` with `FEEDER_MODE=backtest`. Run `Initiator` and `Finalizer` as normal.
+  - Verify that the `Feeder` publishes the historical data to Redis.
+  - Verify that the `Initiator` and `Finalizer` process this data and create completed cycles in the database based on the historical opportunities.

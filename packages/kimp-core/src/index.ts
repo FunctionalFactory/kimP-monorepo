@@ -5,9 +5,12 @@ export * from './kimp-core.service';
 export * from './db/database.module';
 export * from './db/arbitrage-record.service';
 export * from './db/portfolio-log.service';
+export * from './db/historical-price.service';
 export * from './db/entities/arbitrage-cycle.entity';
 export * from './db/entities/trade.entity';
 export * from './db/entities/portfolio-log.entity';
+export * from './db/entities/system-setting.entity';
+export * from './db/entities/historical-price.entity';
 
 // Config exports
 export * from './config/config.module';
@@ -39,3 +42,4 @@ export * from './utils/service/retry-manager.service';
 export * from './utils/service/distributed-lock.service';
 export * from './utils/service/strategy-high.service';
 export * from './utils/service/strategy-low.service';
+export * from './utils/service/settings.service';

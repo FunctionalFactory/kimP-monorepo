@@ -6,6 +6,7 @@ import { SpreadCalculatorService } from '@app/kimp-core';
 import { StrategyHighService } from '@app/kimp-core';
 import { StrategyLowService } from '@app/kimp-core';
 import { ArbitrageCycle } from '@app/kimp-core';
+import { SettingsService } from '@app/kimp-core';
 
 @Injectable()
 export class FinalizerService {
@@ -18,6 +19,7 @@ export class FinalizerService {
     private readonly spreadCalculatorService: SpreadCalculatorService,
     private readonly strategyHighService: StrategyHighService,
     private readonly strategyLowService: StrategyLowService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async processPendingCycles(): Promise<void> {
@@ -90,6 +92,14 @@ export class FinalizerService {
     const symbol = 'BTC'; // 실제로는 사이클에서 추출
     const investmentAmount = cycle.initialInvestmentKrw || 1000000;
 
+    // 설정에서 최소 수익률 확인
+    const minProfitSetting = await this.settingsService.getSetting(
+      'FINALIZER_MIN_PROFIT',
+    );
+    const minProfitPercent = minProfitSetting
+      ? parseFloat(minProfitSetting)
+      : 0.1; // 기본값 0.1%
+
     // 현재 시장 가격 조회 (실제 구현에서는 ExchangeService 사용)
     const marketState = this.spreadCalculatorService.getMarketState(symbol);
 
@@ -104,6 +114,14 @@ export class FinalizerService {
       binancePrice: marketState.binancePrice || 49000000,
       investmentAmount,
     });
+
+    // 최소 수익률 필터링
+    if (spreadResult && spreadResult.netProfitPercent < minProfitPercent) {
+      this.logger.debug(
+        `재균형 수익률 부족: ${spreadResult.netProfitPercent.toFixed(2)}% < ${minProfitPercent}%`,
+      );
+      return null;
+    }
 
     return spreadResult;
   }

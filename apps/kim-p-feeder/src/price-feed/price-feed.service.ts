@@ -9,7 +9,7 @@ import * as WebSocket from 'ws';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { BehaviorSubject } from 'rxjs';
-import { ExchangeService } from '@app/kimp-core';
+import { ExchangeService, HistoricalPriceService } from '@app/kimp-core';
 import { RedisPublisherService } from '../redis/redis-publisher.service';
 
 export interface PriceUpdateData {
@@ -48,6 +48,7 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly exchangeService: ExchangeService,
     private readonly redisPublisherService: RedisPublisherService,
+    private readonly historicalPriceService: HistoricalPriceService,
   ) {
     this._watchedSymbolsConfig = this.configService.get<WatchedSymbolConfig[]>(
       'WATCHED_SYMBOLS',
@@ -86,8 +87,17 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       'PriceFeedService Initialized. Starting to connect to WebSockets...',
     );
-    this.connectToAllFeeds();
-    this.initializeOrderBooks();
+
+    const feederMode = this.configService.get<string>('FEEDER_MODE', 'live');
+
+    if (feederMode === 'backtest') {
+      this.logger.log('백테스팅 모드로 시작합니다...');
+      this.startBacktestMode();
+    } else {
+      this.logger.log('실시간 모드로 시작합니다...');
+      this.connectToAllFeeds();
+      this.initializeOrderBooks();
+    }
   }
 
   onModuleDestroy() {
@@ -362,5 +372,57 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
       socket.terminate();
     });
     this.binanceSockets.clear();
+  }
+
+  private async startBacktestMode() {
+    try {
+      this.logger.log('백테스팅 모드: 과거 가격 데이터 로딩 중...');
+
+      // 모든 과거 가격 데이터 조회
+      const historicalPrices =
+        await this.historicalPriceService.getAllHistoricalPrices();
+
+      if (historicalPrices.length === 0) {
+        this.logger.warn('백테스팅 모드: 과거 가격 데이터가 없습니다.');
+        return;
+      }
+
+      this.logger.log(
+        `백테스팅 모드: ${historicalPrices.length}개의 가격 데이터를 처리합니다.`,
+      );
+
+      // 심볼별로 데이터 그룹화
+      const pricesBySymbol = new Map<string, any[]>();
+      historicalPrices.forEach((price) => {
+        if (!pricesBySymbol.has(price.symbol)) {
+          pricesBySymbol.set(price.symbol, []);
+        }
+        pricesBySymbol.get(price.symbol)!.push(price);
+      });
+
+      // 각 심볼별로 순차적으로 처리
+      for (const [symbol, prices] of pricesBySymbol) {
+        this.logger.log(
+          `백테스팅 모드: ${symbol} 심볼 처리 중... (${prices.length}개 데이터)`,
+        );
+
+        for (const price of prices) {
+          // Redis에 가격 데이터 발행
+          await this.redisPublisherService.publishPriceUpdate({
+            symbol: price.symbol,
+            exchange: 'upbit', // 백테스팅에서는 upbit 가격만 사용
+            price: price.price,
+            timestamp: price.timestamp.getTime(),
+          });
+
+          // 100ms 지연으로 실시간 피드 시뮬레이션
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      this.logger.log('백테스팅 모드: 모든 과거 데이터 처리 완료');
+    } catch (error) {
+      this.logger.error(`백테스팅 모드 오류: ${error.message}`);
+    }
   }
 }

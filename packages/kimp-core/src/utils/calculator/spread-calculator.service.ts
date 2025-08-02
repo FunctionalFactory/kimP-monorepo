@@ -3,6 +3,7 @@ import { FeeCalculatorService } from './fee-calculator.service';
 import { SlippageCalculatorService } from './slippage-calculator.service';
 import { InvestmentConfigService } from '../../config/investment-config.service';
 import { ExchangeService } from '../../exchange/exchange.service';
+import { SettingsService } from '../service/settings.service';
 
 export interface SpreadCalculationParams {
   symbol: string;
@@ -33,6 +34,7 @@ export class SpreadCalculatorService {
     private readonly slippageCalculatorService: SlippageCalculatorService,
     private readonly investmentConfigService: InvestmentConfigService,
     private readonly exchangeService: ExchangeService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async calculateSpread(
@@ -57,15 +59,22 @@ export class SpreadCalculatorService {
     const isNormalOpportunity = upbitPrice > binancePrice;
 
     // 설정에서 최소 스프레드 확인
-    const config = this.investmentConfigService.getInvestmentConfig();
-    if (spreadPercent < config.minSpreadPercent) {
+    const minSpreadSetting = await this.settingsService.getSetting(
+      'INITIATOR_MIN_SPREAD',
+    );
+    const minSpreadPercent = minSpreadSetting
+      ? parseFloat(minSpreadSetting)
+      : 0.5; // 기본값 0.5%
+
+    if (spreadPercent < minSpreadPercent) {
       this.logger.debug(
-        `[${symbol}] 스프레드 부족: ${spreadPercent.toFixed(2)}% < ${config.minSpreadPercent}%`,
+        `[${symbol}] 스프레드 부족: ${spreadPercent.toFixed(2)}% < ${minSpreadPercent}%`,
       );
       return null;
     }
 
     // 2단계: 환율 및 투자 금액 계산
+    const config = this.investmentConfigService.getInvestmentConfig();
     const rate = config.exchangeRateUsdtKrw;
     const buyAmount = investmentAmount / binancePrice;
 

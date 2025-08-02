@@ -38,6 +38,15 @@
       "compilerOptions": {
         "tsConfigPath": "packages/kimp-core/tsconfig.lib.json"
       }
+    },
+    "kim-p-dashboard-be": {
+      "type": "application",
+      "root": "apps/kim-p-dashboard-be",
+      "entryFile": "main",
+      "sourceRoot": "apps/kim-p-dashboard-be/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/kim-p-dashboard-be/tsconfig.app.json"
+      }
     }
   }
 }
