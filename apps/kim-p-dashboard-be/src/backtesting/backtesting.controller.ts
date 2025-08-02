@@ -98,6 +98,28 @@ export class BacktestingController {
     }
   }
 
+  @Get('datasets')
+  async getDatasets() {
+    try {
+      // 심볼별로 업로드된 데이터셋 정보 조회
+      const datasets = await this.historicalPriceService.getDatasetInfo();
+
+      return datasets.map((dataset) => ({
+        id: dataset.symbol,
+        name: `${dataset.symbol} Historical Data`,
+        uploadDate: dataset.uploadDate,
+        size: `${dataset.count} records`,
+        status: 'Ready',
+      }));
+    } catch (error) {
+      this.logger.error(`데이터셋 조회 오류: ${error.message}`);
+      throw new HttpException(
+        '데이터셋을 가져오는 중 오류가 발생했습니다.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Get('results')
   async getBacktestResults(): Promise<BacktestResult> {
     try {

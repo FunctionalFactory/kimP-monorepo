@@ -73,4 +73,27 @@ export class HistoricalPriceService {
       order: { timestamp: 'ASC' },
     });
   }
+
+  async getDatasetInfo(): Promise<
+    Array<{ symbol: string; count: number; uploadDate: string }>
+  > {
+    try {
+      const result = await this.historicalPriceRepository
+        .createQueryBuilder('price')
+        .select('price.symbol', 'symbol')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('MAX(price.createdAt)', 'uploadDate')
+        .groupBy('price.symbol')
+        .getRawMany();
+
+      return result.map((item) => ({
+        symbol: item.symbol,
+        count: parseInt(item.count),
+        uploadDate: new Date(item.uploadDate).toISOString(),
+      }));
+    } catch (error) {
+      this.logger.error(`데이터셋 정보 조회 오류: ${error.message}`);
+      throw error;
+    }
+  }
 }
