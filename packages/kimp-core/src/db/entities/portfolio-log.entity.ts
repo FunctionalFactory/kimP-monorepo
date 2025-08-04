@@ -7,37 +7,21 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { ArbitrageCycle } from './arbitrage-cycle.entity'; // 연결할 ArbitrageCycle 엔티티
+import { ArbitrageCycle } from './arbitrage-cycle.entity';
 
-@Entity('portfolio_log') // 테이블명은 보통 소문자 스네이크 케이스 사용
+@Entity('portfolio_logs')
 export class PortfolioLog {
-  @PrimaryGeneratedColumn('increment') // UUID를 사용하거나, 단순 auto-increment integer도 가능
+  @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @CreateDateColumn({ type: 'datetime' }) // 로그 기록 시간 (자동 생성)
-  timestamp: Date;
+  @CreateDateColumn({ type: 'datetime' })
+  createdAt: Date;
 
   @Column({
     type: 'decimal',
     precision: 20,
     scale: 2,
-    comment: '업비트 KRW 잔고',
-  })
-  upbit_balance_krw: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 20,
-    scale: 2,
-    comment: '바이낸스 자산의 KRW 환산 총액',
-  })
-  binance_balance_krw: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 20,
-    scale: 2,
-    comment: '총 KRW 환산 잔고 (다음 사이클 투자금 기준)',
+    comment: '총 KRW 환산 잔고',
   })
   total_balance_krw: number;
 
@@ -45,33 +29,44 @@ export class PortfolioLog {
     type: 'decimal',
     precision: 20,
     scale: 2,
-    comment: '이전 사이클 순손익금 (KRW)',
+    comment: '사이클 순손익금 (KRW)',
+    default: 0,
   })
   cycle_pnl_krw: number;
 
   @Column({
     type: 'decimal',
+    precision: 20,
+    scale: 2,
+    comment: '총 순손익금 (KRW)',
+    default: 0,
+  })
+  total_pnl_krw: number;
+
+  @Column({
+    type: 'decimal',
     precision: 10,
     scale: 4,
-    comment: '이전 사이클 순손익률 (%)',
+    comment: 'ROI 퍼센트',
+    default: 0,
   })
-  cycle_pnl_rate_percent: number;
-
-  @ManyToOne(() => ArbitrageCycle, { nullable: true, onDelete: 'SET NULL' }) // ArbitrageCycle 삭제 시 이 필드는 NULL로 설정
-  @JoinColumn({ name: 'linked_arbitrage_cycle_id' }) // 실제 DB 컬럼명
-  linked_arbitrage_cycle: ArbitrageCycle | null; // 관계 설정
+  roi_percentage: number;
 
   @Column({
-    type: 'uuid',
-    nullable: true,
-    comment: '이 로그를 발생시킨 차익거래 사이클 ID',
+    type: 'enum',
+    enum: ['INITIAL', 'TRADE', 'FINAL'],
+    comment: '로그 타입',
   })
-  linked_arbitrage_cycle_id: string | null; // Foreign Key 필드를 명시적으로 추가
+  log_type: 'INITIAL' | 'TRADE' | 'FINAL';
+
+  @ManyToOne(() => ArbitrageCycle, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'cycle_id' })
+  cycle: ArbitrageCycle | null;
 
   @Column({
-    type: 'text',
+    type: 'int',
     nullable: true,
-    comment: '비고 (예: 초기 자본 설정, 사이클 XXX 완료 등)',
+    comment: '연결된 차익거래 사이클 ID',
   })
-  remarks: string | null;
+  cycle_id: number | null;
 }

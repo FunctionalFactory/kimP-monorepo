@@ -26,29 +26,22 @@ export class PortfolioLogService {
   }
 
   async createLog(data: {
-    timestamp: Date;
-    upbit_balance_krw: number;
-    binance_balance_krw: number;
     total_balance_krw: number;
-    cycle_pnl_krw: number;
-    cycle_pnl_rate_percent: number;
-    linked_arbitrage_cycle_id?: string | null;
-    remarks?: string | null;
+    cycle_pnl_krw?: number;
+    total_pnl_krw?: number;
+    roi_percentage?: number;
+    log_type: 'INITIAL' | 'TRADE' | 'FINAL';
+    cycle_id?: number | null;
   }): Promise<PortfolioLog> {
     try {
       const newLogData: Partial<PortfolioLog> = {
-        timestamp: data.timestamp,
-        upbit_balance_krw: data.upbit_balance_krw,
-        binance_balance_krw: data.binance_balance_krw,
         total_balance_krw: data.total_balance_krw,
-        cycle_pnl_krw: data.cycle_pnl_krw,
-        cycle_pnl_rate_percent: data.cycle_pnl_rate_percent,
-        remarks: data.remarks,
+        cycle_pnl_krw: data.cycle_pnl_krw || 0,
+        total_pnl_krw: data.total_pnl_krw || 0,
+        roi_percentage: data.roi_percentage || 0,
+        log_type: data.log_type,
+        cycle_id: data.cycle_id || null,
       };
-
-      if (data.linked_arbitrage_cycle_id) {
-        newLogData.linked_arbitrage_cycle_id = data.linked_arbitrage_cycle_id;
-      }
 
       const newLog = this.portfolioLogRepository.create(newLogData);
       const savedLog = await this.portfolioLogRepository.save(newLog);
@@ -83,7 +76,7 @@ export class PortfolioLogService {
         return this.latestPortfolioCache;
       }
       const logs = await this.portfolioLogRepository.find({
-        order: { timestamp: 'DESC' },
+        order: { createdAt: 'DESC' },
         take: 1,
       });
 
@@ -96,7 +89,7 @@ export class PortfolioLogService {
         );
 
         // this.logger.verbose(
-        //   `가장 최근 포트폴리오 로그 조회됨: ID ${latestLog.id}, 총 잔고 ${totalBalanceForLog !== null ? totalBalanceForLog.toFixed(0) : 'N/A'} KRW (Timestamp: ${latestLog.timestamp.toISOString()})`,
+        //   `가장 최근 포트폴리오 로그 조회됨: ID ${latestLog.id}, 총 잔고 ${totalBalanceForLog !== null ? totalBalanceForLog.toFixed(0) : 'N/A'} KRW (CreatedAt: ${latestLog.createdAt.toISOString()})`,
         // );
 
         // 캐시 업데이트

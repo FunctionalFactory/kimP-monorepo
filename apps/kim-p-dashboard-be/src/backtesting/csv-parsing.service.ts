@@ -2,13 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse';
 
 export interface CsvRow {
-  candle_date_time_kst: string;
+  candle_date_time_utc: string;
   trade_price: string;
-  volume?: string;
-  high?: string;
-  low?: string;
-  open?: string;
-  close?: string;
+  candle_acc_trade_volume?: string;
+  high_price?: string;
+  low_price?: string;
+  opening_price?: string;
 }
 
 export interface ParsedPriceData {
@@ -40,7 +39,7 @@ export class CsvParsingService {
       })
         .on('data', (row: CsvRow) => {
           try {
-            const timestamp = new Date(row.candle_date_time_kst);
+            const timestamp = new Date(row.candle_date_time_utc);
             const price = parseFloat(row.trade_price);
 
             if (isNaN(price) || isNaN(timestamp.getTime())) {
@@ -54,11 +53,15 @@ export class CsvParsingService {
               symbol,
               timestamp,
               price,
-              volume: row.volume ? parseFloat(row.volume) : undefined,
-              high: row.high ? parseFloat(row.high) : undefined,
-              low: row.low ? parseFloat(row.low) : undefined,
-              open: row.open ? parseFloat(row.open) : undefined,
-              close: row.close ? parseFloat(row.close) : undefined,
+              volume: row.candle_acc_trade_volume
+                ? parseFloat(row.candle_acc_trade_volume)
+                : undefined,
+              high: row.high_price ? parseFloat(row.high_price) : undefined,
+              low: row.low_price ? parseFloat(row.low_price) : undefined,
+              open: row.opening_price
+                ? parseFloat(row.opening_price)
+                : undefined,
+              close: row.trade_price ? parseFloat(row.trade_price) : undefined,
             };
 
             results.push(parsedData);

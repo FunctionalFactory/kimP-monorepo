@@ -71,7 +71,7 @@ export default function ResultsDashboard() {
 
     try {
       const response = await axios.get(
-        'http://localhost:3001/api/backtest/results',
+        'http://localhost:4000/api/backtest/results',
       );
       setResults(response.data);
     } catch (error) {

@@ -4,6 +4,10 @@
   "description": "",
   "author": "",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",

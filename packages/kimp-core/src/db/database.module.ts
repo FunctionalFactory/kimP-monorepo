@@ -68,6 +68,8 @@ import { SettingsService } from '../utils/service/settings.service';
     HistoricalPriceService,
     SettingsService,
     TypeOrmModule, // Repository들을 export
+    'SYSTEM_SETTING_REPOSITORY', // Repository provider export
+    'HISTORICAL_PRICE_REPOSITORY', // Repository provider export
   ],
 })
 export class DatabaseModule implements OnModuleInit {

@@ -17,6 +17,7 @@ import {
   TableRow,
   Paper,
   Divider,
+  TextField,
 } from '@mui/material';
 import { CloudUpload, Refresh } from '@mui/icons-material';
 import axios from 'axios';
@@ -31,6 +32,7 @@ interface Dataset {
 
 export default function DataManagement() {
   const [file, setFile] = useState<File | null>(null);
+  const [symbol, setSymbol] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -50,7 +52,13 @@ export default function DataManagement() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file || !symbol.trim()) {
+      setMessage({
+        type: 'error',
+        text: 'Please select a file and enter a symbol.',
+      });
+      return;
+    }
 
     setUploading(true);
     setMessage(null);
@@ -58,9 +66,10 @@ export default function DataManagement() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('symbol', symbol.trim());
 
       const response = await axios.post(
-        'http://localhost:3001/api/backtest/upload-data',
+        'http://localhost:4000/api/backtest/upload-data',
         formData,
         {
           headers: {
@@ -87,7 +96,7 @@ export default function DataManagement() {
     setLoading(true);
     try {
       const response = await axios.get(
-        'http://localhost:3001/api/backtest/datasets',
+        'http://localhost:4000/api/backtest/datasets',
       );
       setDatasets(response.data);
     } catch (error) {
@@ -117,27 +126,38 @@ export default function DataManagement() {
             Upload CSV files containing historical price data for backtesting.
           </Typography>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <Button
-              variant="outlined"
-              component="label"
-              startIcon={<CloudUpload />}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                startIcon={<CloudUpload />}
+                disabled={uploading}
+              >
+                Select CSV File
+                <input
+                  type="file"
+                  hidden
+                  accept=".csv"
+                  onChange={handleFileChange}
+                />
+              </Button>
+              {file && (
+                <Typography variant="body2">Selected: {file.name}</Typography>
+              )}
+            </Box>
+
+            <TextField
+              label="Symbol (e.g., BTCUSDT)"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              placeholder="Enter trading symbol"
               disabled={uploading}
-            >
-              Select CSV File
-              <input
-                type="file"
-                hidden
-                accept=".csv"
-                onChange={handleFileChange}
-              />
-            </Button>
-            {file && (
-              <Typography variant="body2">Selected: {file.name}</Typography>
-            )}
+              sx={{ maxWidth: 300 }}
+            />
           </Box>
 
-          {file && (
+          {file && symbol.trim() && (
             <Button
               variant="contained"
               onClick={handleUpload}

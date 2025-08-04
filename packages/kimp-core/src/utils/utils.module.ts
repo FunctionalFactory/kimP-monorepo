@@ -1,8 +1,10 @@
 // packages/kimp-core/src/utils/utils.module.ts
 import { Module } from '@nestjs/common';
+import { TypeOrmModule, getDataSourceToken } from '@nestjs/typeorm';
 import { AppConfigModule } from '../config/config.module';
 import { ExchangeModule } from '../exchange/exchange.module';
 import { DatabaseModule } from '../db/database.module';
+import { SystemSetting } from '../db/entities/system-setting.entity';
 import { FeeCalculatorService } from './calculator/fee-calculator.service';
 import { SlippageCalculatorService } from './calculator/slippage-calculator.service';
 import { SpreadCalculatorService } from './calculator/spread-calculator.service';
@@ -33,6 +35,11 @@ import { SettingsService } from './service/settings.service';
     StrategyHighService,
     StrategyLowService,
     SettingsService,
+    {
+      provide: 'SYSTEM_SETTING_REPOSITORY',
+      useFactory: (dataSource) => dataSource.getRepository(SystemSetting),
+      inject: [getDataSourceToken()],
+    },
   ],
   exports: [
     FeeCalculatorService,
