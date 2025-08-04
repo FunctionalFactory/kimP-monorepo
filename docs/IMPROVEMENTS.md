@@ -15,12 +15,14 @@
 
 ### 1. API 키 보안 강화
 
-**문제**: 
+**문제**:
+
 - API 키가 평문으로 환경 변수에 저장됨
 - 키 로테이션 메커니즘이 없음
 - 키 노출 시 즉시 무효화 방법이 없음
 
 **솔루션**:
+
 ```typescript
 // 암호화된 API 키 저장
 interface EncryptedApiKey {
@@ -40,7 +42,8 @@ export class ApiKeyManagerService {
 }
 ```
 
-**이점**: 
+**이점**:
+
 - API 키 노출 위험 최소화
 - 자동 키 로테이션으로 보안 강화
 - 키 노출 시 즉시 대응 가능
@@ -48,11 +51,13 @@ export class ApiKeyManagerService {
 ### 2. 데이터베이스 연결 풀 최적화
 
 **문제**:
+
 - TypeORM 기본 연결 풀 설정 사용
 - 대용량 데이터 처리 시 연결 부족 발생
 - 연결 누수 가능성
 
 **솔루션**:
+
 ```typescript
 // 데이터베이스 설정 최적화
 const databaseConfig = {
@@ -67,11 +72,12 @@ const databaseConfig = {
     connectionLimit: 20,
     acquireTimeout: 60000,
     timeout: 60000,
-  }
+  },
 };
 ```
 
 **이점**:
+
 - 동시 요청 처리 능력 향상
 - 연결 타임아웃 방지
 - 메모리 사용량 최적화
@@ -79,11 +85,13 @@ const databaseConfig = {
 ### 3. Redis 연결 안정성 강화
 
 **문제**:
+
 - Redis 연결 실패 시 재시도 로직 부족
 - 연결 풀링 미구현
 - 메모리 누수 가능성
 
 **솔루션**:
+
 ```typescript
 @Injectable()
 export class RedisConnectionManager {
@@ -102,6 +110,7 @@ export class RedisConnectionManager {
 ```
 
 **이점**:
+
 - Redis 연결 안정성 향상
 - 자동 재연결 및 복구
 - 성능 최적화
@@ -111,18 +120,23 @@ export class RedisConnectionManager {
 ### 4. WebSocket 연결 관리 개선
 
 **문제**:
+
 - WebSocket 연결 실패 시 단순 재연결만 구현
 - 연결 품질 모니터링 부족
 - 메모리 누수 가능성
 
 **솔루션**:
+
 ```typescript
 @Injectable()
 export class WebSocketManager {
   private connections = new Map<string, WebSocket>();
   private healthChecks = new Map<string, NodeJS.Timeout>();
 
-  async createConnection(url: string, options: WebSocketOptions): Promise<WebSocket> {
+  async createConnection(
+    url: string,
+    options: WebSocketOptions,
+  ): Promise<WebSocket> {
     // 연결 품질 모니터링
     // 자동 재연결 로직 강화
     // 메모리 정리
@@ -135,6 +149,7 @@ export class WebSocketManager {
 ```
 
 **이점**:
+
 - 연결 안정성 향상
 - 실시간 연결 품질 모니터링
 - 메모리 사용량 최적화
@@ -142,11 +157,13 @@ export class WebSocketManager {
 ### 5. 백테스팅 성능 최적화
 
 **문제**:
+
 - 대용량 CSV 파일 처리 시 메모리 부족
 - 순차 처리로 인한 느린 실행
 - 진행률 표시 부족
 
 **솔루션**:
+
 ```typescript
 @Injectable()
 export class OptimizedBacktestService {
@@ -164,6 +181,7 @@ export class OptimizedBacktestService {
 ```
 
 **이점**:
+
 - 대용량 데이터 처리 가능
 - 실행 시간 단축
 - 사용자 경험 개선
@@ -171,11 +189,13 @@ export class OptimizedBacktestService {
 ### 6. 실시간 대시보드 구현
 
 **문제**:
+
 - 현재 대시보드가 정적 페이지
 - 실시간 데이터 업데이트 부족
 - 성능 메트릭 시각화 부족
 
 **솔루션**:
+
 ```typescript
 // WebSocket 기반 실시간 대시보드
 const RealTimeDashboard = () => {
@@ -202,6 +222,7 @@ const RealTimeDashboard = () => {
 ```
 
 **이점**:
+
 - 실시간 시스템 모니터링
 - 즉시 문제 감지 및 대응
 - 사용자 경험 향상
@@ -211,11 +232,13 @@ const RealTimeDashboard = () => {
 ### 7. 마이크로서비스 통신 개선
 
 **문제**:
+
 - Redis 메시지 브로커만 사용
 - 서비스 간 직접 통신 부족
 - 메시지 형식 표준화 부족
 
 **솔루션**:
+
 ```typescript
 // gRPC 기반 서비스 간 통신
 @Controller()
@@ -233,6 +256,7 @@ export class InterServiceController {
 ```
 
 **이점**:
+
 - 서비스 간 통신 성능 향상
 - 타입 안전성 보장
 - 확장성 개선
@@ -240,11 +264,13 @@ export class InterServiceController {
 ### 8. 데이터베이스 스키마 최적화
 
 **문제**:
+
 - 인덱스 부족으로 인한 쿼리 성능 저하
 - 정규화 부족으로 인한 데이터 중복
 - 마이그레이션 전략 부족
 
 **솔루션**:
+
 ```sql
 -- 성능 최적화를 위한 인덱스 추가
 CREATE INDEX idx_arbitrage_cycles_status_created ON arbitrage_cycles(status, created_at);
@@ -257,6 +283,7 @@ FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
 ```
 
 **이점**:
+
 - 쿼리 성능 향상
 - 데이터 관리 효율성 개선
 - 확장성 강화
@@ -264,11 +291,13 @@ FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
 ### 9. 로깅 시스템 개선
 
 **문제**:
+
 - 구조화된 로깅 부족
 - 로그 레벨 관리 부족
 - 로그 분석 도구 부족
 
 **솔루션**:
+
 ```typescript
 @Injectable()
 export class StructuredLogger {
@@ -281,7 +310,7 @@ export class StructuredLogger {
       traceId: this.getTraceId(),
       spanId: this.getSpanId(),
     };
-    
+
     // JSON 형태로 로그 출력
     console.log(JSON.stringify(logEntry));
   }
@@ -291,15 +320,16 @@ export class StructuredLogger {
 const elkConfig = {
   elasticsearch: {
     host: 'localhost:9200',
-    index: 'kimp-logs'
+    index: 'kimp-logs',
   },
   kibana: {
-    host: 'localhost:5601'
-  }
+    host: 'localhost:5601',
+  },
 };
 ```
 
 **이점**:
+
 - 로그 분석 용이성 향상
 - 문제 추적 능력 강화
 - 운영 효율성 개선
@@ -307,19 +337,18 @@ const elkConfig = {
 ### 10. 테스트 커버리지 향상
 
 **문제**:
+
 - 단위 테스트 커버리지 부족
 - 통합 테스트 부족
 - E2E 테스트 부족
 
 **솔루션**:
+
 ```typescript
 // 테스트 커버리지 목표 설정
 // jest.config.js
 module.exports = {
-  collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-  ],
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts'],
   coverageThreshold: {
     global: {
       branches: 80,
@@ -339,6 +368,7 @@ describe('ArbitrageCycle Integration', () => {
 ```
 
 **이점**:
+
 - 코드 품질 향상
 - 버그 조기 발견
 - 리팩토링 안전성 보장
@@ -348,19 +378,21 @@ describe('ArbitrageCycle Integration', () => {
 ### 11. 코드 문서화 개선
 
 **문제**:
+
 - JSDoc 주석 부족
 - API 문서 자동 생성 부족
 - 아키텍처 문서 부족
 
 **솔루션**:
-```typescript
+
+````typescript
 /**
  * 차익거래 기회를 감지하고 처리하는 서비스
- * 
+ *
  * @description
  * 실시간 가격 데이터를 분석하여 차익거래 기회를 감지하고,
  * 수익성이 있는 경우 거래를 실행합니다.
- * 
+ *
  * @example
  * ```typescript
  * const opportunity = await opportunityScanner.detectOpportunity('XRP');
@@ -373,17 +405,20 @@ describe('ArbitrageCycle Integration', () => {
 export class OpportunityScannerService {
   /**
    * 특정 심볼에 대한 차익거래 기회를 감지합니다.
-   * 
+   *
    * @param symbol - 거래 심볼 (예: 'XRP', 'BTC')
    * @returns 감지된 기회 또는 null
    */
-  async detectOpportunity(symbol: string): Promise<ArbitrageOpportunity | null> {
+  async detectOpportunity(
+    symbol: string,
+  ): Promise<ArbitrageOpportunity | null> {
     // 구현
   }
 }
-```
+````
 
 **이점**:
+
 - 코드 이해도 향상
 - 개발자 온보딩 시간 단축
 - 유지보수성 개선
@@ -391,11 +426,13 @@ export class OpportunityScannerService {
 ### 12. 개발 환경 개선
 
 **문제**:
+
 - 개발 환경 설정 복잡성
 - 디버깅 도구 부족
 - 코드 포맷팅 일관성 부족
 
 **솔루션**:
+
 ```json
 // .vscode/settings.json
 {
@@ -417,7 +454,7 @@ services:
     image: redis:alpine
     ports:
       - "6379:6379"
-  
+
   postgres:
     image: postgres:13
     environment:
@@ -429,6 +466,7 @@ services:
 ```
 
 **이점**:
+
 - 개발 환경 일관성 보장
 - 디버깅 효율성 향상
 - 팀 협업 개선
@@ -436,11 +474,13 @@ services:
 ### 13. 성능 모니터링 도구
 
 **문제**:
+
 - 성능 메트릭 수집 부족
 - 병목 지점 식별 어려움
 - 실시간 모니터링 부족
 
 **솔루션**:
+
 ```typescript
 // 성능 모니터링 미들웨어
 @Injectable()
@@ -453,7 +493,7 @@ export class PerformanceMonitor {
       uptime: process.uptime(),
       activeConnections: this.getActiveConnections(),
     };
-    
+
     await this.metricsService.record(metrics);
   }
 }
@@ -475,6 +515,7 @@ const prometheusConfig = {
 ```
 
 **이점**:
+
 - 성능 병목 지점 식별
 - 실시간 시스템 모니터링
 - 예방적 유지보수 가능
@@ -482,26 +523,31 @@ const prometheusConfig = {
 ## 구현 로드맵
 
 ### Phase 1 (즉시 - 1주)
+
 - [ ] API 키 보안 강화
 - [ ] Redis 연결 안정성 강화
 - [ ] 데이터베이스 연결 풀 최적화
 
 ### Phase 2 (1-2주)
+
 - [ ] WebSocket 연결 관리 개선
 - [ ] 백테스팅 성능 최적화
 - [ ] 실시간 대시보드 구현
 
 ### Phase 3 (2-4주)
+
 - [ ] 마이크로서비스 통신 개선
 - [ ] 데이터베이스 스키마 최적화
 - [ ] 로깅 시스템 개선
 
 ### Phase 4 (4-8주)
+
 - [ ] 테스트 커버리지 향상
 - [ ] 코드 문서화 개선
 - [ ] 개발 환경 개선
 
 ### Phase 5 (8-12주)
+
 - [ ] 성능 모니터링 도구
 - [ ] 고급 분석 기능
 - [ ] 자동화된 배포 파이프라인
@@ -509,16 +555,19 @@ const prometheusConfig = {
 ## 예상 효과
 
 ### 성능 개선
+
 - **처리 속도**: 30-50% 향상
 - **메모리 사용량**: 20-30% 감소
 - **동시 처리 능력**: 2-3배 향상
 
 ### 안정성 개선
+
 - **가동률**: 99.9% 달성
 - **오류 복구 시간**: 50% 단축
 - **데이터 손실 위험**: 최소화
 
 ### 개발 효율성
+
 - **개발 속도**: 25% 향상
 - **버그 발견률**: 40% 향상
 - **유지보수 비용**: 30% 감소
@@ -526,16 +575,19 @@ const prometheusConfig = {
 ## 추가 고려사항
 
 ### 보안 강화
+
 - API 키 암호화 및 로테이션
 - 네트워크 보안 강화
 - 감사 로그 구현
 
 ### 확장성 준비
+
 - 수평 확장 아키텍처
 - 로드 밸런싱
 - 데이터베이스 샤딩
 
 ### 운영 자동화
+
 - CI/CD 파이프라인
 - 자동 스케일링
 - 장애 복구 자동화
@@ -544,4 +596,4 @@ const prometheusConfig = {
 
 이 개선 계획을 단계적으로 구현하면 kimP 시스템의 전반적인 품질과 성능이 크게 향상될 것입니다. 특히 Critical 및 High 우선순위 항목들을 우선적으로 해결하여 시스템의 안정성과 보안을 강화하는 것이 중요합니다.
 
-각 단계별로 구현 후 충분한 테스트를 거쳐 다음 단계로 진행하는 것을 권장합니다. 
+각 단계별로 구현 후 충분한 테스트를 거쳐 다음 단계로 진행하는 것을 권장합니다.
