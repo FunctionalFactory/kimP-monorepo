@@ -11,7 +11,9 @@ describe('KimPDashboardBeController', () => {
       providers: [KimPDashboardBeService],
     }).compile();
 
-    kimPDashboardBeController = app.get<KimPDashboardBeController>(KimPDashboardBeController);
+    kimPDashboardBeController = app.get<KimPDashboardBeController>(
+      KimPDashboardBeController,
+    );
   });
 
   describe('root', () => {

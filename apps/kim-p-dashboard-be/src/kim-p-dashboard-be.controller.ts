@@ -3,7 +3,9 @@ import { KimPDashboardBeService } from './kim-p-dashboard-be.service';
 
 @Controller()
 export class KimPDashboardBeController {
-  constructor(private readonly kimPDashboardBeService: KimPDashboardBeService) {}
+  constructor(
+    private readonly kimPDashboardBeService: KimPDashboardBeService,
+  ) {}
 
   @Get()
   getHello(): string {

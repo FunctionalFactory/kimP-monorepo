@@ -31,6 +31,9 @@ export class SettingsController {
         data: settings,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         '설정을 가져오는 중 오류가 발생했습니다.',
         HttpStatus.INTERNAL_SERVER_ERROR,
