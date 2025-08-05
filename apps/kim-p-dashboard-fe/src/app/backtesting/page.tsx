@@ -82,7 +82,9 @@ export default function BacktestingPage() {
   const fetchDatasets = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/backtest/datasets');
+      const response = await fetch(
+        'http://localhost:4000/api/backtest/datasets',
+      );
       const data = await response.json();
       if (data.success) {
         setDatasets(data.data);
@@ -112,13 +114,16 @@ export default function BacktestingPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/backtest/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        'http://localhost:4000/api/backtest/sessions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
         },
-        body: JSON.stringify(formData),
-      });
+      );
 
       const data = await response.json();
 

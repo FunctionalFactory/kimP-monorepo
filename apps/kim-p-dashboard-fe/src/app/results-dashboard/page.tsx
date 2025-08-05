@@ -94,7 +94,9 @@ export default function ResultsDashboard() {
     setError(null);
 
     try {
-      const response = await fetch('/api/backtest/sessions');
+      const response = await fetch(
+        'http://localhost:4000/api/backtest/sessions',
+      );
       const data = await response.json();
       if (data.success) {
         setSessions(data.data);
