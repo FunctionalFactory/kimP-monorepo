@@ -17,6 +17,8 @@ import {
   CircularProgress,
   Paper,
   Divider,
+  Chip,
+  Stack,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -24,6 +26,9 @@ import {
   Assessment,
   CheckCircle,
   Error,
+  CalendarToday,
+  TrendingUp,
+  AccountBalance,
 } from '@mui/icons-material';
 
 interface Dataset {
@@ -35,10 +40,21 @@ interface Dataset {
   status: string;
 }
 
+interface BacktestParameters {
+  minSpread: number;
+  maxLoss: number;
+  investmentAmount: number;
+  upbitSymbol: string;
+  binanceSymbol: string;
+  timeframe: string;
+  startDate: string;
+  endDate: string;
+}
+
 interface BacktestSession {
   sessionId: string;
   status: string;
-  parameters: any;
+  parameters: BacktestParameters;
 }
 
 export default function BacktestingPage() {
@@ -48,7 +64,7 @@ export default function BacktestingPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<BacktestParameters>({
     minSpread: 0.5,
     maxLoss: 0.1,
     investmentAmount: 1000000,
@@ -65,18 +81,23 @@ export default function BacktestingPage() {
 
   const fetchDatasets = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/backtest/datasets');
       const data = await response.json();
       if (data.success) {
         setDatasets(data.data);
+      } else {
+        setError('데이터셋을 불러오는 중 오류가 발생했습니다.');
       }
     } catch (error) {
       console.error('데이터셋 조회 실패:', error);
       setError('데이터셋을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof BacktestParameters, value: string | number) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -113,16 +134,20 @@ export default function BacktestingPage() {
   };
 
   const getUpbitDatasets = () => {
-    return datasets.filter((dataset) => dataset.exchange === 'upbit');
+    return datasets.filter((dataset) => dataset.exchange.toLowerCase() === 'upbit');
   };
 
   const getBinanceDatasets = () => {
-    return datasets.filter((dataset) => dataset.exchange === 'binance');
+    return datasets.filter((dataset) => dataset.exchange.toLowerCase() === 'binance');
+  };
+
+  const isFormValid = () => {
+    return formData.upbitSymbol && formData.binanceSymbol && !loading;
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
         백테스팅 컨트롤 패널
       </Typography>
 
@@ -133,169 +158,196 @@ export default function BacktestingPage() {
         </Typography>
       </Alert>
 
-      <Grid container spacing={3}>
+      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
         {/* 파라미터 설정 */}
-        <Grid item xs={12} md={6}>
-          <Card>
+        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
+          <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
-                전략 파라미터
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Settings sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h6">전략 파라미터</Typography>
+              </Box>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="최소 진입 스프레드 (%)"
-                    type="number"
-                    value={formData.minSpread}
+              <Stack spacing={3}>
+                <TextField
+                  fullWidth
+                  label="최소 진입 스프레드 (%)"
+                  type="number"
+                  value={formData.minSpread}
+                  onChange={(e) =>
+                    handleInputChange('minSpread', parseFloat(e.target.value) || 0)
+                  }
+                  inputProps={{ step: 0.1, min: 0 }}
+                  helperText="차익거래를 시작할 최소 스프레드 비율"
+                  InputProps={{
+                    startAdornment: <TrendingUp sx={{ mr: 1, color: 'text.secondary' }} />,
+                  }}
+                />
+
+                <TextField
+                  fullWidth
+                  label="최대 재균형 손실 (%)"
+                  type="number"
+                  value={formData.maxLoss}
+                  onChange={(e) =>
+                    handleInputChange('maxLoss', parseFloat(e.target.value) || 0)
+                  }
+                  inputProps={{ step: 0.1, min: 0 }}
+                  helperText="재균형 시 허용할 최대 손실 비율"
+                  InputProps={{
+                    startAdornment: <Error sx={{ mr: 1, color: 'text.secondary' }} />,
+                  }}
+                />
+
+                <TextField
+                  fullWidth
+                  label="거래당 투자 금액 (KRW)"
+                  type="number"
+                  value={formData.investmentAmount}
+                  onChange={(e) =>
+                    handleInputChange(
+                      'investmentAmount',
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  inputProps={{ min: 10000 }}
+                  helperText="각 거래에서 사용할 투자 금액"
+                  InputProps={{
+                    startAdornment: <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />,
+                  }}
+                />
+
+                <FormControl fullWidth>
+                  <InputLabel>타임프레임</InputLabel>
+                  <Select
+                    value={formData.timeframe}
                     onChange={(e) =>
-                      handleInputChange('minSpread', parseFloat(e.target.value))
+                      handleInputChange('timeframe', e.target.value)
                     }
-                    inputProps={{ step: 0.1, min: 0 }}
-                    helperText="차익거래를 시작할 최소 스프레드 비율"
-                  />
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="최대 재균형 손실 (%)"
-                    type="number"
-                    value={formData.maxLoss}
-                    onChange={(e) =>
-                      handleInputChange('maxLoss', parseFloat(e.target.value))
-                    }
-                    inputProps={{ step: 0.1, min: 0 }}
-                    helperText="재균형 시 허용할 최대 손실 비율"
-                  />
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="거래당 투자 금액 (KRW)"
-                    type="number"
-                    value={formData.investmentAmount}
-                    onChange={(e) =>
-                      handleInputChange(
-                        'investmentAmount',
-                        parseInt(e.target.value),
-                      )
-                    }
-                    inputProps={{ min: 10000 }}
-                    helperText="각 거래에서 사용할 투자 금액"
-                  />
-                </Grid>
-
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>타임프레임</InputLabel>
-                    <Select
-                      value={formData.timeframe}
-                      onChange={(e) =>
-                        handleInputChange('timeframe', e.target.value)
-                      }
-                    >
-                      <MenuItem value="1m">1분</MenuItem>
-                      <MenuItem value="5m">5분</MenuItem>
-                      <MenuItem value="15m">15분</MenuItem>
-                      <MenuItem value="1h">1시간</MenuItem>
-                      <MenuItem value="4h">4시간</MenuItem>
-                      <MenuItem value="1d">1일</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
+                  >
+                    <MenuItem value="1m">1분</MenuItem>
+                    <MenuItem value="3m">3분</MenuItem>
+                    <MenuItem value="5m">5분</MenuItem>
+                    <MenuItem value="15m">15분</MenuItem>
+                    <MenuItem value="30m">30분</MenuItem>
+                    <MenuItem value="1h">1시간</MenuItem>
+                    <MenuItem value="4h">4시간</MenuItem>
+                    <MenuItem value="1d">1일</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* 데이터셋 선택 */}
-        <Grid item xs={12} md={6}>
-          <Card>
+        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
+          <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <Assessment sx={{ mr: 1, verticalAlign: 'middle' }} />
-                데이터셋 선택
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Assessment sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h6">데이터셋 선택</Typography>
+              </Box>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Upbit 데이터셋</InputLabel>
-                    <Select
-                      value={formData.upbitSymbol}
-                      onChange={(e) =>
-                        handleInputChange('upbitSymbol', e.target.value)
-                      }
-                    >
-                      {getUpbitDatasets().map((dataset) => (
-                        <MenuItem key={dataset.id} value={dataset.symbol}>
-                          {dataset.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    거래소 선택
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <Chip 
+                      label="UPBIT" 
+                      color="primary" 
+                      variant="outlined"
+                      sx={{ flex: 1 }}
+                    />
+                    <Chip 
+                      label="BINANCE" 
+                      color="primary" 
+                      variant="outlined"
+                      sx={{ flex: 1 }}
+                    />
+                  </Box>
+                </Box>
 
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Binance 데이터셋</InputLabel>
-                    <Select
-                      value={formData.binanceSymbol}
-                      onChange={(e) =>
-                        handleInputChange('binanceSymbol', e.target.value)
-                      }
-                    >
-                      {getBinanceDatasets().map((dataset) => (
-                        <MenuItem key={dataset.id} value={dataset.symbol}>
-                          {dataset.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="시작 날짜 (선택사항)"
-                    type="date"
-                    value={formData.startDate}
+                <FormControl fullWidth>
+                  <InputLabel>Upbit 데이터셋</InputLabel>
+                  <Select
+                    value={formData.upbitSymbol}
                     onChange={(e) =>
-                      handleInputChange('startDate', e.target.value)
+                      handleInputChange('upbitSymbol', e.target.value)
                     }
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
+                  >
+                    {getUpbitDatasets().map((dataset) => (
+                      <MenuItem key={dataset.id} value={dataset.symbol}>
+                        {dataset.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="종료 날짜 (선택사항)"
-                    type="date"
-                    value={formData.endDate}
+                <FormControl fullWidth>
+                  <InputLabel>Binance 데이터셋</InputLabel>
+                  <Select
+                    value={formData.binanceSymbol}
                     onChange={(e) =>
-                      handleInputChange('endDate', e.target.value)
+                      handleInputChange('binanceSymbol', e.target.value)
                     }
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-              </Grid>
+                  >
+                    {getBinanceDatasets().map((dataset) => (
+                      <MenuItem key={dataset.id} value={dataset.symbol}>
+                        {dataset.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    기간 설정 (선택사항)
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <TextField
+                      fullWidth
+                      label="시작 날짜"
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) =>
+                        handleInputChange('startDate', e.target.value)
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: <CalendarToday sx={{ mr: 1, color: 'text.secondary' }} />,
+                      }}
+                    />
+                    <TextField
+                      fullWidth
+                      label="종료 날짜"
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) =>
+                        handleInputChange('endDate', e.target.value)
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: <CalendarToday sx={{ mr: 1, color: 'text.secondary' }} />,
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
       {/* 백테스트 실행 */}
-      <Card sx={{ mt: 3 }}>
+      <Card sx={{ mt: 3 }} elevation={2}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <PlayArrow sx={{ mr: 1, verticalAlign: 'middle' }} />
-            백테스트 실행
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <PlayArrow sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">백테스트 실행</Typography>
+          </Box>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -319,9 +371,7 @@ export default function BacktestingPage() {
             variant="contained"
             size="large"
             onClick={handleStartBacktest}
-            disabled={
-              loading || !formData.upbitSymbol || !formData.binanceSymbol
-            }
+            disabled={!isFormValid()}
             startIcon={loading ? <CircularProgress size={20} /> : <PlayArrow />}
             sx={{ mt: 2 }}
           >

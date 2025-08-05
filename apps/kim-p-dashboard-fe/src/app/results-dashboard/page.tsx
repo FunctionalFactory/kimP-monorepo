@@ -41,10 +41,21 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+interface BacktestParameters {
+  minSpread: number;
+  maxLoss: number;
+  investmentAmount: number;
+  upbitSymbol: string;
+  binanceSymbol: string;
+  timeframe: string;
+  startDate: string;
+  endDate: string;
+}
+
 interface BacktestSession {
   id: string;
   status: string;
-  parameters: any;
+  parameters: BacktestParameters;
   results?: BacktestResults;
   startTime?: string;
   endTime?: string;
@@ -203,8 +214,8 @@ export default function ResultsDashboard() {
               <Typography variant="h6" gutterBottom>
                 세션 정보
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
                   <Typography variant="body2" color="text.secondary">
                     세션 ID: {currentSession.id}
                   </Typography>
@@ -215,8 +226,8 @@ export default function ResultsDashboard() {
                     생성일:{' '}
                     {new Date(currentSession.createdAt).toLocaleString()}
                   </Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
+                </Box>
+                <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
                   <Typography variant="body2" color="text.secondary">
                     최소 스프레드: {currentSession.parameters.minSpread}%
                   </Typography>
@@ -227,8 +238,8 @@ export default function ResultsDashboard() {
                     투자 금액:{' '}
                     {formatCurrency(currentSession.parameters.investmentAmount)}
                   </Typography>
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </CardContent>
           </Card>
 
@@ -236,8 +247,8 @@ export default function ResultsDashboard() {
           {currentSession.results ? (
             <>
               {/* 주요 지표 */}
-              <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 4 }}>
+                <Box sx={{ flex: '1 1 250px', minWidth: 0 }}>
                   <Card>
                     <CardContent>
                       <Box
@@ -264,9 +275,9 @@ export default function ResultsDashboard() {
                       </Typography>
                     </CardContent>
                   </Card>
-                </Grid>
+                </Box>
 
-                <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ flex: '1 1 250px', minWidth: 0 }}>
                   <Card>
                     <CardContent>
                       <Box
@@ -282,9 +293,9 @@ export default function ResultsDashboard() {
                       </Typography>
                     </CardContent>
                   </Card>
-                </Grid>
+                </Box>
 
-                <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ flex: '1 1 250px', minWidth: 0 }}>
                   <Card>
                     <CardContent>
                       <Box
@@ -300,9 +311,9 @@ export default function ResultsDashboard() {
                       </Typography>
                     </CardContent>
                   </Card>
-                </Grid>
+                </Box>
 
-                <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ flex: '1 1 250px', minWidth: 0 }}>
                   <Card>
                     <CardContent>
                       <Box
@@ -318,8 +329,8 @@ export default function ResultsDashboard() {
                       </Typography>
                     </CardContent>
                   </Card>
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
 
               {/* 거래 내역 */}
               <Card>
