@@ -21,6 +21,7 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 **역할**: 실시간 차익거래 기회 및 현재 시스템 상태를 한눈에 모니터링합니다.
 
 **주요 기능**:
+
 - **실시간 가격 차트**: 업비트와 바이낸스의 실시간 가격 비교
 - **차익거래 기회 목록**: 현재 감지된 차익거래 기회들의 실시간 목록
 - **시스템 상태 모니터링**: 각 마이크로서비스의 연결 상태 표시
@@ -28,22 +29,23 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 - **최근 거래 내역**: 최근 실행된 거래들의 요약 정보
 
 **핵심 컴포넌트**:
+
 ```typescript
 // 실시간 가격 차트
-<PriceComparisonChart 
+<PriceComparisonChart
   upbitPrice={upbitPrice}
   binancePrice={binancePrice}
   spread={calculatedSpread}
 />
 
 // 차익거래 기회 목록
-<ArbitrageOpportunities 
+<ArbitrageOpportunities
   opportunities={opportunities}
   onOpportunityClick={handleOpportunityClick}
 />
 
 // 시스템 상태 모니터
-<SystemStatusMonitor 
+<SystemStatusMonitor
   services={serviceStatus}
   lastUpdate={lastUpdate}
 />
@@ -54,14 +56,15 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 **역할**: 과거 데이터를 이용해 거래 전략을 테스트하고 성능을 평가합니다.
 
 **주요 기능**:
+
 - **데이터 업로드**: CSV 파일을 통한 과거 가격 데이터 업로드
-- **백테스팅 파라미터 설정**: 
+- **백테스팅 파라미터 설정**:
   - 최소 스프레드 설정
   - 최대 투자 금액 설정
   - 수수료율 설정
   - 테스트 기간 설정
 - **백테스팅 실행**: 설정된 파라미터로 백테스팅 실행
-- **결과 요약**: 
+- **결과 요약**:
   - 총 수익률
   - 승률
   - 총 거래 횟수
@@ -69,21 +72,22 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
   - 샤프 비율
 
 **핵심 컴포넌트**:
+
 ```typescript
 // 데이터 업로드 폼
-<DataUploadForm 
+<DataUploadForm
   onUpload={handleDataUpload}
   supportedFormats={['csv']}
 />
 
 // 백테스팅 파라미터 설정
-<BacktestParameters 
+<BacktestParameters
   parameters={parameters}
   onParameterChange={handleParameterChange}
 />
 
 // 백테스팅 결과 요약
-<BacktestSummary 
+<BacktestSummary
   results={backtestResults}
   onViewDetails={handleViewDetails}
 />
@@ -94,10 +98,11 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 **역할**: 특정 백테스팅 실행의 상세 결과를 분석합니다.
 
 **주요 기능**:
+
 - **전체 거래 내역 타임라인**: 백테스팅 기간 동안의 모든 거래 내역
 - **기간별 손익 그래프**: 일별/시간별 수익률 변화 시각화
 - **상세 로그 데이터**: 각 거래의 상세 정보 (가격, 수수료, 수익 등)
-- **성능 메트릭**: 
+- **성능 메트릭**:
   - 최대 낙폭 (MDD)
   - 변동성
   - 평균 수익률
@@ -105,21 +110,22 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 - **거래 패턴 분석**: 성공/실패 거래의 패턴 분석
 
 **핵심 컴포넌트**:
+
 ```typescript
 // 거래 타임라인
-<TradeTimeline 
+<TradeTimeline
   trades={trades}
   onTradeSelect={handleTradeSelect}
 />
 
 // 수익률 차트
-<ProfitLossChart 
+<ProfitLossChart
   data={profitLossData}
   period="daily"
 />
 
 // 성능 메트릭
-<PerformanceMetrics 
+<PerformanceMetrics
   metrics={performanceMetrics}
   comparison={benchmarkComparison}
 />
@@ -130,10 +136,11 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 **역할**: 현재 자동으로 실행 중인 실시간 거래의 상세 내역을 추적합니다.
 
 **주요 기능**:
+
 - **진행 중인 거래 목록**: 현재 실행 중인 차익거래 사이클 목록
 - **체결된 거래 내역**: 완료된 거래들의 상세 정보
 - **실시간 로그 스트리밍**: 시스템 로그의 실시간 표시
-- **거래 상태 추적**: 
+- **거래 상태 추적**:
   - 거래 시작
   - 거래 진행 중
   - 거래 완료
@@ -141,21 +148,22 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 - **실시간 알림**: 중요한 이벤트 발생 시 실시간 알림
 
 **핵심 컴포넌트**:
+
 ```typescript
 // 실시간 거래 목록
-<LiveTradesList 
+<LiveTradesList
   trades={liveTrades}
   onTradeUpdate={handleTradeUpdate}
 />
 
 // 실시간 로그 스트림
-<LogStream 
+<LogStream
   logs={systemLogs}
   filter={logFilter}
 />
 
 // 거래 상태 모니터
-<TradeStatusMonitor 
+<TradeStatusMonitor
   status={tradeStatus}
   alerts={tradeAlerts}
 />
@@ -166,40 +174,42 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 **역할**: 시스템 운영에 필요한 설정을 관리합니다.
 
 **주요 기능**:
-- **거래소 API 키 관리**: 
+
+- **거래소 API 키 관리**:
   - 업비트 API 키 설정
   - 바이낸스 API 키 설정
   - API 키 유효성 검증
-- **거래 허용/차단 코인 설정**: 
+- **거래 허용/차단 코인 설정**:
   - 거래 가능한 코인 목록 관리
   - 특정 코인 거래 차단
   - 코인별 최대 투자 금액 설정
-- **알림 설정**: 
+- **알림 설정**:
   - 텔레그램 알림 설정
   - 이메일 알림 설정
   - 알림 조건 설정
-- **시스템 설정**: 
+- **시스템 설정**:
   - 최소 스프레드 설정
   - 최대 투자 금액 설정
   - 수수료율 설정
   - 재시도 횟수 설정
 
 **핵심 컴포넌트**:
+
 ```typescript
 // API 키 관리
-<ApiKeyManager 
+<ApiKeyManager
   exchanges={exchanges}
   onKeyUpdate={handleKeyUpdate}
 />
 
 // 코인 설정
-<CoinSettings 
+<CoinSettings
   coins={coinSettings}
   onCoinToggle={handleCoinToggle}
 />
 
 // 알림 설정
-<NotificationSettings 
+<NotificationSettings
   settings={notificationSettings}
   onSettingChange={handleSettingChange}
 />
@@ -210,7 +220,7 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 ### 1. 네비게이션
 
 ```typescript
-<Navigation 
+<Navigation
   currentPage={currentPage}
   onPageChange={handlePageChange}
   notifications={notifications}
@@ -224,21 +234,21 @@ kimP Dashboard Frontend는 실시간 차익거래 시스템의 웹 기반 관리
 const useRealTimeData = () => {
   const [data, setData] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  
+
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:4000/ws/realtime');
-    
+
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       setData(message);
     };
-    
+
     ws.onopen = () => setIsConnected(true);
     ws.onclose = () => setIsConnected(false);
-    
+
     return () => ws.close();
   }, []);
-  
+
   return { data, isConnected };
 };
 ```
@@ -247,7 +257,7 @@ const useRealTimeData = () => {
 
 ```typescript
 // 재사용 가능한 차트 컴포넌트
-<Chart 
+<Chart
   data={chartData}
   type="line" | "bar" | "candlestick"
   options={chartOptions}
@@ -267,7 +277,7 @@ const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [settings, setSettings] = useState({});
   const [notifications, setNotifications] = useState([]);
-  
+
   return (
     <AppContext.Provider value={{
       user, setUser,
@@ -288,11 +298,14 @@ const useBacktestState = () => {
   const [parameters, setParameters] = useState(defaultParameters);
   const [results, setResults] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
-  
+
   return {
-    parameters, setParameters,
-    results, setResults,
-    isRunning, setIsRunning
+    parameters,
+    setParameters,
+    results,
+    setResults,
+    isRunning,
+    setIsRunning,
   };
 };
 ```
@@ -310,13 +323,13 @@ const apiClient = axios.create({
 
 // 인터셉터를 통한 에러 처리
 apiClient.interceptors.response.use(
-  response => response,
-  error => {
+  (response) => response,
+  (error) => {
     if (error.response?.status === 401) {
       // 인증 실패 처리
     }
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
@@ -328,21 +341,21 @@ const useBacktestAPI = () => {
   const uploadData = async (file, params) => {
     const formData = new FormData();
     formData.append('file', file);
-    Object.keys(params).forEach(key => {
+    Object.keys(params).forEach((key) => {
       formData.append(key, params[key]);
     });
-    
+
     return await apiClient.post('/backtest/upload-data', formData);
   };
-  
+
   const createSession = async (sessionData) => {
     return await apiClient.post('/backtest/sessions', sessionData);
   };
-  
+
   const getResults = async (sessionId) => {
     return await apiClient.get(`/backtest/sessions/${sessionId}`);
   };
-  
+
   return { uploadData, createSession, getResults };
 };
 ```
@@ -385,7 +398,7 @@ const TradeList = ({ trades }) => {
       <TradeItem trade={trades[index]} />
     </div>
   );
-  
+
   return (
     <List
       height={400}
@@ -410,9 +423,9 @@ describe('PriceChart', () => {
       { timestamp: '2024-01-01', price: 50000 },
       { timestamp: '2024-01-02', price: 51000 }
     ];
-    
+
     render(<PriceChart data={mockData} />);
-    
+
     expect(screen.getByText('50000')).toBeInTheDocument();
     expect(screen.getByText('51000')).toBeInTheDocument();
   });
@@ -427,9 +440,9 @@ describe('BacktestAPI', () => {
   it('uploads data successfully', async () => {
     const mockFile = new File(['test'], 'test.csv', { type: 'text/csv' });
     const mockParams = { exchange: 'upbit', symbol: 'BTC' };
-    
+
     const result = await uploadData(mockFile, mockParams);
-    
+
     expect(result.status).toBe(200);
     expect(result.data.success).toBe(true);
   });
@@ -506,8 +519,8 @@ npm run type-check
 
 ## 변경 이력
 
-| 버전 | 날짜 | 변경사항 |
-|------|------|----------|
-| 1.0.0 | 2024-01-01 | 초기 대시보드 구현 |
-| 1.1.0 | 2024-01-15 | 백테스팅 기능 추가 |
+| 버전  | 날짜       | 변경사항             |
+| ----- | ---------- | -------------------- |
+| 1.0.0 | 2024-01-01 | 초기 대시보드 구현   |
+| 1.1.0 | 2024-01-15 | 백테스팅 기능 추가   |
 | 1.2.0 | 2024-02-01 | 실시간 모니터링 추가 |

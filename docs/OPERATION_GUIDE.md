@@ -164,6 +164,7 @@ yarn start:dev kim-p-feeder
 ```
 
 **정상 시작 확인**:
+
 - 로그에 "PriceFeedService Initialized" 메시지 확인
 - WebSocket 연결 성공 메시지 확인
 - Redis 연결 성공 메시지 확인
@@ -176,6 +177,7 @@ yarn start:dev kim-p-initiator
 ```
 
 **정상 시작 확인**:
+
 - 데이터베이스 연결 성공 메시지 확인
 - Redis 구독 성공 메시지 확인
 - "OpportunityScannerService initialized" 메시지 확인
@@ -188,6 +190,7 @@ yarn start:dev kim-p-finalizer
 ```
 
 **정상 시작 확인**:
+
 - 데이터베이스 연결 성공 메시지 확인
 - 스케줄러 시작 메시지 확인
 - 사이클 처리 시작 메시지 확인
@@ -200,6 +203,7 @@ yarn start:dev kim-p-dashboard-be
 ```
 
 **정상 시작 확인**:
+
 - 서버가 포트 4000에서 시작됨
 - API 엔드포인트 접근 가능
 
@@ -212,6 +216,7 @@ yarn dev
 ```
 
 **정상 시작 확인**:
+
 - 서버가 포트 4001에서 시작됨
 - 브라우저에서 `http://localhost:4001` 접근 가능
 
@@ -253,11 +258,11 @@ curl http://localhost:4000/api/portfolio/current
 
 ```bash
 mysql -u root -p kimp -e "
-SELECT 
+SELECT
   COUNT(*) as total_cycles,
   status,
   COUNT(*) as count
-FROM arbitrage_cycles 
+FROM arbitrage_cycles
 GROUP BY status;
 "
 ```
@@ -298,6 +303,7 @@ redis-cli dbsize
 **증상**: 서비스가 시작되지 않거나 즉시 종료됨
 
 **해결 방법**:
+
 1. 환경 변수 확인
 2. 포트 충돌 확인
 3. 의존성 서비스(DB, Redis) 연결 확인
@@ -320,6 +326,7 @@ echo $REDIS_HOST
 **증상**: "Database connection failed" 오류
 
 **해결 방법**:
+
 ```bash
 # MySQL 서비스 상태 확인
 sudo systemctl status mysql
@@ -336,6 +343,7 @@ mysql -u root -p -e "SELECT 1;"
 **증상**: "Redis connection error" 오류
 
 **해결 방법**:
+
 ```bash
 # Redis 서비스 상태 확인
 sudo systemctl status redis
@@ -354,6 +362,7 @@ redis-cli ping
 **증상**: "JavaScript heap out of memory" 오류
 
 **해결 방법**:
+
 ```bash
 # Node.js 메모리 제한 증가
 export NODE_OPTIONS="--max-old-space-size=4096"
@@ -365,6 +374,7 @@ yarn start:dev kim-p-feeder
 #### 느린 응답 시간
 
 **해결 방법**:
+
 1. 데이터베이스 인덱스 확인
 2. Redis 메모리 사용량 확인
 3. 네트워크 연결 상태 확인
@@ -382,6 +392,7 @@ redis-cli info stats
 #### 사이클이 "stuck" 상태
 
 **해결 방법**:
+
 ```sql
 -- 타임아웃된 사이클 확인
 SELECT id, status, locked_at, retry_count
@@ -642,6 +653,7 @@ redis-cli ping || echo "Redis down"
 ### 11.1 문제 보고
 
 버그나 문제를 발견한 경우:
+
 1. 로그 파일 수집
 2. 시스템 상태 정보 수집
 3. 재현 단계 작성
@@ -667,8 +679,8 @@ redis-cli ping || echo "Redis down"
 
 ## 12. 변경 이력
 
-| 버전 | 날짜 | 변경사항 |
-|------|------|----------|
+| 버전  | 날짜       | 변경사항              |
+| ----- | ---------- | --------------------- |
 | 1.0.0 | 2024-01-01 | 초기 운영 가이드 작성 |
-| 1.1.0 | 2024-01-15 | 문제 해결 섹션 추가 |
-| 1.2.0 | 2024-02-01 | 보안 고려사항 추가 | 
+| 1.1.0 | 2024-01-15 | 문제 해결 섹션 추가   |
+| 1.2.0 | 2024-02-01 | 보안 고려사항 추가    |
