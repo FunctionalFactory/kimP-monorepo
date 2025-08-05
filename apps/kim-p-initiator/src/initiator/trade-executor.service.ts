@@ -24,7 +24,10 @@ export class TradeExecutorService {
     private readonly strategyLowService: StrategyLowService,
   ) {}
 
-  async initiateArbitrageCycle(opportunity: ArbitrageOpportunity) {
+  async initiateArbitrageCycle(
+    opportunity: ArbitrageOpportunity,
+    sessionId?: string,
+  ) {
     // 분산 잠금 키 생성
     const lockKey = `lock:${opportunity.symbol}`;
     const lockTTL = 30000; // 30초 잠금

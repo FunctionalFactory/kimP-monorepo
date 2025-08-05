@@ -7,9 +7,13 @@ import { Trade } from './entities/trade.entity';
 import { PortfolioLog } from './entities/portfolio-log.entity';
 import { SystemSetting } from './entities/system-setting.entity';
 import { HistoricalPrice } from './entities/historical-price.entity';
+import { Candlestick } from './entities/candlestick.entity';
+import { BacktestSession } from './entities/backtest-session.entity';
 import { ArbitrageRecordService } from './arbitrage-record.service';
 import { PortfolioLogService } from './portfolio-log.service';
 import { HistoricalPriceService } from './historical-price.service';
+import { CandlestickService } from './candlestick.service';
+import { BacktestSessionService } from './backtest-session.service';
 import { SettingsService } from '../utils/service/settings.service';
 
 @Module({
@@ -29,6 +33,8 @@ import { SettingsService } from '../utils/service/settings.service';
           PortfolioLog,
           SystemSetting,
           HistoricalPrice,
+          Candlestick,
+          BacktestSession,
         ],
         synchronize: false,
         autoLoadEntities: true,
@@ -44,12 +50,16 @@ import { SettingsService } from '../utils/service/settings.service';
       PortfolioLog,
       SystemSetting,
       HistoricalPrice,
+      Candlestick,
+      BacktestSession,
     ]),
   ],
   providers: [
     ArbitrageRecordService,
     PortfolioLogService,
     HistoricalPriceService,
+    CandlestickService,
+    BacktestSessionService,
     {
       provide: 'SYSTEM_SETTING_REPOSITORY',
       useFactory: (dataSource) => dataSource.getRepository(SystemSetting),
@@ -66,6 +76,8 @@ import { SettingsService } from '../utils/service/settings.service';
     ArbitrageRecordService,
     PortfolioLogService,
     HistoricalPriceService,
+    CandlestickService,
+    BacktestSessionService,
     SettingsService,
     TypeOrmModule, // Repository들을 export
     'SYSTEM_SETTING_REPOSITORY', // Repository provider export

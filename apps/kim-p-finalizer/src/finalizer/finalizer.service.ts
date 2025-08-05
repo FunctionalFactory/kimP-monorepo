@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ArbitrageRecordService } from '@app/kimp-core';
 import { RetryManagerService } from '@app/kimp-core';
 import { PortfolioLogService } from '@app/kimp-core';
@@ -7,6 +8,7 @@ import { StrategyHighService } from '@app/kimp-core';
 import { StrategyLowService } from '@app/kimp-core';
 import { ArbitrageCycle } from '@app/kimp-core';
 import { SettingsService } from '@app/kimp-core';
+import { BacktestSessionService } from '@app/kimp-core';
 
 @Injectable()
 export class FinalizerService {
@@ -20,6 +22,8 @@ export class FinalizerService {
     private readonly strategyHighService: StrategyHighService,
     private readonly strategyLowService: StrategyLowService,
     private readonly settingsService: SettingsService,
+    private readonly backtestSessionService: BacktestSessionService,
+    private readonly configService: ConfigService,
   ) {}
 
   async processPendingCycles(): Promise<void> {
@@ -92,13 +96,28 @@ export class FinalizerService {
     const symbol = 'BTC'; // 실제로는 사이클에서 추출
     const investmentAmount = cycle.initialInvestmentKrw || 1000000;
 
-    // 설정에서 최소 수익률 확인
+    // 백테스트 세션에서 최대 손실 파라미터 가져오기
+    let maxLossPercent = 0.1; // 기본값 0.1%
+
+    try {
+      const sessionId = this.configService.get<string>('SESSION_ID');
+      if (sessionId) {
+        const session = await this.backtestSessionService.findById(sessionId);
+        if (session && session.status === 'RUNNING') {
+          maxLossPercent = session.parameters.maxLoss;
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`세션 파라미터 조회 실패: ${error.message}`);
+    }
+
+    // 설정에서 최소 수익률 확인 (백테스트에서는 maxLoss 사용)
     const minProfitSetting = await this.settingsService.getSetting(
       'FINALIZER_MIN_PROFIT',
     );
     const minProfitPercent = minProfitSetting
       ? parseFloat(minProfitSetting)
-      : 0.1; // 기본값 0.1%
+      : maxLossPercent; // 백테스트에서는 maxLoss를 최소 수익률로 사용
 
     // 현재 시장 가격 조회 (실제 구현에서는 ExchangeService 사용)
     const marketState = this.spreadCalculatorService.getMarketState(symbol);

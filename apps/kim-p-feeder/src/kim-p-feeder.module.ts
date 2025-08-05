@@ -5,6 +5,7 @@ import { KimPFeederService } from './kim-p-feeder.service';
 import { PriceFeedModule } from './price-feed/price-feed.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { BacktestSessionModule } from './backtest-session/backtest-session.module';
 import { AppConfigModule } from '@app/kimp-core';
 import { ExchangeModule } from '@app/kimp-core';
 
@@ -16,6 +17,7 @@ import { ExchangeModule } from '@app/kimp-core';
     PriceFeedModule,
     RedisModule,
     HealthModule,
+    BacktestSessionModule,
   ],
   controllers: [KimPFeederController],
   providers: [KimPFeederService],

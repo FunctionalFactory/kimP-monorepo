@@ -14,7 +14,12 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
-import { CloudUpload, PlayArrow, Assessment } from '@mui/icons-material';
+import {
+  CloudUpload,
+  PlayArrow,
+  Assessment,
+  Settings,
+} from '@mui/icons-material';
 import Link from 'next/link';
 
 const theme = createTheme({
@@ -33,6 +38,7 @@ const drawerWidth = 240;
 
 const menuItems = [
   { text: 'Data Management', icon: <CloudUpload />, href: '/data-management' },
+  { text: 'Backtesting', icon: <Settings />, href: '/backtesting' },
   { text: 'Run Backtest', icon: <PlayArrow />, href: '/run-backtest' },
   {
     text: 'Results Dashboard',

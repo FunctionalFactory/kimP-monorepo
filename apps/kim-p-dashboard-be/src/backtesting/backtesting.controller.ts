@@ -8,6 +8,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CsvParsingService } from './csv-parsing.service';
@@ -15,6 +16,8 @@ import {
   HistoricalPriceService,
   ArbitrageRecordService,
   PortfolioLogService,
+  CandlestickService,
+  BacktestSessionService,
 } from '@app/kimp-core';
 
 interface BacktestResult {
@@ -40,6 +43,8 @@ export class BacktestingController {
     private readonly historicalPriceService: HistoricalPriceService,
     private readonly arbitrageRecordService: ArbitrageRecordService,
     private readonly portfolioLogService: PortfolioLogService,
+    private readonly candlestickService: CandlestickService,
+    private readonly backtestSessionService: BacktestSessionService,
   ) {}
 
   @Post('upload-data')
@@ -53,9 +58,12 @@ export class BacktestingController {
         throw new HttpException('파일이 필요합니다.', HttpStatus.BAD_REQUEST);
       }
 
-      const symbol = body.symbol;
-      if (!symbol) {
-        throw new HttpException('심볼이 필요합니다.', HttpStatus.BAD_REQUEST);
+      const { exchange, symbol, timeframe } = body;
+      if (!exchange || !symbol || !timeframe) {
+        throw new HttpException(
+          'exchange, symbol, timeframe이 필요합니다.',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       const csvContent = file.buffer.toString();
@@ -72,14 +80,34 @@ export class BacktestingController {
       }
 
       // 기존 데이터 삭제 후 새 데이터 저장
-      await this.historicalPriceService.deleteHistoricalPrices(symbol);
-      await this.historicalPriceService.saveHistoricalPrices(parsedData);
+      await this.candlestickService.deleteByExchangeAndSymbol(
+        exchange,
+        symbol,
+        timeframe,
+      );
+
+      // Candlestick 형식으로 변환하여 저장
+      const candlestickData = parsedData.map((data) => ({
+        exchange,
+        symbol,
+        timeframe,
+        timestamp: data.timestamp,
+        open: data.open || data.price,
+        high: data.high || data.price,
+        low: data.low || data.price,
+        close: data.close || data.price,
+        volume: data.volume || 0,
+      }));
+
+      await this.candlestickService.createMany(candlestickData);
 
       return {
         success: true,
-        message: `${symbol}: ${parsedData.length}개의 가격 데이터 업로드 완료`,
+        message: `${exchange} ${symbol} ${timeframe}: ${parsedData.length}개의 캔들스틱 데이터 업로드 완료`,
         data: {
-          symbol: symbol,
+          exchange,
+          symbol,
+          timeframe,
           count: parsedData.length,
           dateRange: {
             start: parsedData[0].timestamp,
@@ -102,20 +130,111 @@ export class BacktestingController {
   @Get('datasets')
   async getDatasets() {
     try {
-      // 심볼별로 업로드된 데이터셋 정보 조회
-      const datasets = await this.historicalPriceService.getDatasetInfo();
+      // 캔들스틱 데이터셋 정보 조회
+      const datasets = await this.candlestickService.getAvailableDatasets();
 
       return datasets.map((dataset) => ({
-        id: dataset.symbol,
-        name: `${dataset.symbol} Historical Data`,
-        uploadDate: dataset.uploadDate,
-        size: `${dataset.count} records`,
+        id: `${dataset.exchange}-${dataset.symbol}-${dataset.timeframe}`,
+        name: `${dataset.exchange} ${dataset.symbol} ${dataset.timeframe}`,
+        exchange: dataset.exchange,
+        symbol: dataset.symbol,
+        timeframe: dataset.timeframe,
         status: 'Ready',
       }));
     } catch (error) {
       this.logger.error(`데이터셋 조회 오류: ${error.message}`);
       throw new HttpException(
         '데이터셋을 가져오는 중 오류가 발생했습니다.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('sessions')
+  async createBacktestSession(@Body() body: any) {
+    try {
+      const {
+        minSpread,
+        maxLoss,
+        investmentAmount,
+        upbitSymbol,
+        binanceSymbol,
+        timeframe,
+        startDate,
+        endDate,
+      } = body;
+
+      if (
+        !minSpread ||
+        !maxLoss ||
+        !investmentAmount ||
+        !upbitSymbol ||
+        !binanceSymbol ||
+        !timeframe
+      ) {
+        throw new HttpException(
+          '필수 파라미터가 누락되었습니다.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const parameters = {
+        minSpread,
+        maxLoss,
+        investmentAmount,
+        upbitSymbol,
+        binanceSymbol,
+        timeframe,
+        startDate,
+        endDate,
+      };
+
+      const session = await this.backtestSessionService.create(parameters);
+
+      return {
+        success: true,
+        message: '백테스트 세션이 생성되었습니다.',
+        data: {
+          sessionId: session.id,
+          status: session.status,
+          parameters: session.parameters,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`백테스트 세션 생성 오류: ${error.message}`);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        '백테스트 세션 생성 중 오류가 발생했습니다.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('sessions/:id')
+  async getBacktestSession(@Param('id') id: string) {
+    try {
+      const session = await this.backtestSessionService.findById(id);
+
+      if (!session) {
+        throw new HttpException(
+          '세션을 찾을 수 없습니다.',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        success: true,
+        data: session,
+      };
+    } catch (error) {
+      this.logger.error(`백테스트 세션 조회 오류: ${error.message}`);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        '백테스트 세션 조회 중 오류가 발생했습니다.',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
