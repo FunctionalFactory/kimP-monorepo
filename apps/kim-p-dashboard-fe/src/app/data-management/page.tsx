@@ -18,6 +18,10 @@ import {
   Paper,
   Divider,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { CloudUpload, Refresh } from '@mui/icons-material';
 import axios from 'axios';
@@ -33,6 +37,8 @@ interface Dataset {
 export default function DataManagement() {
   const [file, setFile] = useState<File | null>(null);
   const [symbol, setSymbol] = useState<string>('');
+  const [exchange, setExchange] = useState<string>('BINANCE');
+  const [timeframe, setTimeframe] = useState<string>('1h');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -40,6 +46,9 @@ export default function DataManagement() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+
+  const exchanges = ['BINANCE', 'UPBIT'];
+  const timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -52,10 +61,10 @@ export default function DataManagement() {
   };
 
   const handleUpload = async () => {
-    if (!file || !symbol.trim()) {
+    if (!file || !symbol.trim() || !exchange.trim() || !timeframe.trim()) {
       setMessage({
         type: 'error',
-        text: 'Please select a file and enter a symbol.',
+        text: 'Please select a file and enter all required fields.',
       });
       return;
     }
@@ -67,6 +76,8 @@ export default function DataManagement() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('symbol', symbol.trim());
+      formData.append('exchange', exchange.trim());
+      formData.append('timeframe', timeframe.trim());
 
       const response = await axios.post(
         'http://localhost:4000/api/backtest/upload-data',
@@ -155,9 +166,39 @@ export default function DataManagement() {
               disabled={uploading}
               sx={{ maxWidth: 300 }}
             />
+
+            <FormControl sx={{ maxWidth: 300 }} disabled={uploading}>
+              <InputLabel>Exchange</InputLabel>
+              <Select
+                value={exchange}
+                label="Exchange"
+                onChange={(e) => setExchange(e.target.value)}
+              >
+                {exchanges.map((ex) => (
+                  <MenuItem key={ex} value={ex}>
+                    {ex}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl sx={{ maxWidth: 300 }} disabled={uploading}>
+              <InputLabel>Timeframe</InputLabel>
+              <Select
+                value={timeframe}
+                label="Timeframe"
+                onChange={(e) => setTimeframe(e.target.value)}
+              >
+                {timeframes.map((tf) => (
+                  <MenuItem key={tf} value={tf}>
+                    {tf}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
 
-          {file && symbol.trim() && (
+          {file && symbol.trim() && exchange.trim() && timeframe.trim() && (
             <Button
               variant="contained"
               onClick={handleUpload}
