@@ -1,76 +1,115 @@
-# Mission Briefing: Build an Advanced, Parameter-Driven Backtesting System
+# Mission: kimP-monorepo 최종 감사 및 문서화
 
-## Overall Goal
+## 1. 프로젝트 개요 및 임무 지침
 
-- To evolve our system into a sophisticated backtesting tool where users can upload their own historical data and test various trading strategies by dynamically setting parameters.
+안녕하세요. 당신은 `kimP-monorepo` 프로젝트의 최종 감사 및 문서화를 담당할 AI 어시스턴트입니다.
 
-## Current Branch
+**프로젝트 목표**: 실시간 차익거래 기회 포착 및 거래, 과거 데이터 기반 전략 검증(백테스팅)을 위한 완전 자동화 시스템 구축.
 
-- Ensure all work is done on the `feature/advanced-backtesting-system` branch.
+**아키텍처**: Monorepo 구조. 3개의 핵심 마이크로서비스(Feeder, Initiator, Finalizer), 1개의 공유 라이브러리(kimp-core), 1개의 API 서버(Dashboard-BE), 그리고 1개의 프론트엔드(Dashboard-FE)로 구성.
 
----
+**기술 스택**: NestJS (Backend), Next.js (Frontend), TypeScript, TypeORM, Redis, MySQL.
 
-## **Part 1: Foundational Upgrade (Database & API)**
+**현재 상태**: 모든 핵심 기능 및 E2E 테스트 완료.
 
-### Step 1.1: Redesign the Historical Data Schema
+**당신의 임무**: 아래 4단계에 따라 프로젝트의 최종 안정성을 확보하고, 공식 문서를 완성하는 것입니다. 모든 평가 내용은 `review.md` 파일에 새롭게 작성해야 합니다 (기존 내용은 삭제).
 
-1.  The existing `historical_price` entity is too simple. We need a more robust structure.
-2.  In `packages/kimp-core/src/db/entities/`, create a new entity `candlestick.entity.ts`.
-3.  This `Candlestick` entity must include columns for `exchange`, `symbol`, `timeframe` (e.g., '1m', '5m', '1d'), `timestamp`, `open`, `high`, `low`, `close`, and `volume`.
-4.  **CRITICAL**: Create a unique composite index on `(exchange, symbol, timeframe, timestamp)` to prevent duplicate data entries.
-
-### Step 1.2: Create a Backtest Session Management System
-
-1.  In `packages/kimp-core/src/db/entities/`, create a new entity `backtest-session.entity.ts`.
-2.  This `BacktestSession` entity will store the parameters and results for each test run. It should include columns for:
-    - `id` (UUID)
-    - `status` ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED')
-    - `parameters` (JSON column to store user-defined settings like `minSpread`, `maxLoss`, `investmentAmount`)
-    - `results` (JSON column to store the final report)
-    - `startTime`, `endTime`
-
-### Step 1.3: Enhance the `Dashboard-BE` API
-
-1.  In `apps/kim-p-dashboard-be/`, refactor the `BacktestingController` and `BacktestingService`.
-2.  **Modify Data Upload**: The `POST /api/backtest/upload-data` endpoint must now accept `exchange`, `symbol`, and `timeframe` along with the CSV file to correctly populate the new `candlesticks` table.
-3.  **New Session API**:
-    - Create `POST /api/backtest/sessions`: This endpoint will accept the user's strategy parameters (`minSpread`, `maxLoss`, etc.), create a new record in the `backtest_sessions` table with `status: 'PENDING'`, and return the new `sessionId`.
-    - Create `GET /api/backtest/sessions/:id`: This endpoint will fetch the status and final results of a specific backtest session.
+**작업 시작 전 준비사항**:
+먼저, 안전한 작업을 위해 새로운 Git 브랜치를 생성하고 그 브랜치에서 모든 작업을 진행해야 합니다.
+`git checkout -b feature/final-audit-and-docs`
 
 ---
 
-## **Part 2: Implement the Dynamic Strategy Engine**
+## 2. 작업 단계 (Phase)
 
-### Step 2.1: Refactor the `Feeder` for Session-based Backtesting
+아래 순서에 따라 단계적으로 작업을 진행해주세요. 각 단계의 분석 및 평가 내용은 `review.md` 파일에 해당 단계의 제목 아래에 상세히 기록해주세요.
 
-1.  When `Feeder` starts in `backtest` mode, it should now accept a `SESSION_ID` as an environment variable.
-2.  It will query the `backtest_sessions` table to get the parameters for that session (e.g., which symbol and timeframe to use).
-3.  It will then query the `candlesticks` table based on these parameters.
-4.  **CRITICAL**: As it publishes data to Redis, every message must now be tagged with the `sessionId`.
-    - Example Redis message: `{ "sessionId": "...", "symbol": "BTC", "price": 60000, ... }`
+### Phase 1: 안정성 강화 (Stability Enhancement)
 
-### Step 2.2: Refactor `Initiator` and `Finalizer` to be Session-Aware
+**목표**: 잠재적인 동시성 문제, 오류 처리 로직, 트랜잭션 관리를 분석하고 개선하여 운영 안정성을 극대화합니다.
 
-1.  The `Initiator`'s `OpportunityScannerService` will now receive the `sessionId` from the Redis message.
-2.  Instead of using a global setting, it will fetch the specific parameters for that `sessionId` (e.g., from a cache or by calling a service in `kimp-core`).
-3.  It will then use these dynamic parameters (`minSpread`, `investmentAmount`) for its calculations.
-4.  The `Finalizer` will do the same, using the session-specific `maxLoss` parameter for its rebalancing plan.
+**작업 지침**:
+
+1.  `docs/ERROR_HANDLING.md`와 `README.md`의 '잠재적 문제' 섹션을 먼저 숙지하세요.
+2.  **동시성 검토**:
+    - `Initiator` 서비스에서 여러 거래 기회가 동시에 처리될 때 발생할 수 있는 경쟁 상태(Race Condition)를 분석하세요.
+    - `kimp-core`의 `ArbitrageRecordService` 내 데이터베이스 잠금 메커니즘(`findAndLockNextCycle` 등)이 데드락(Deadlock) 및 기아 상태(Starvation)를 방지하도록 설계되었는지 검토하고, 개선안을 제시하세요.
+3.  **오류 처리 로직 검토**:
+    - 각 마이크로서비스(`Feeder`, `Initiator`, `Finalizer`) 간 통신 실패 시(예: Redis Pub/Sub, HTTP 요청)의 재시도(Retry) 로직과 서킷 브레이커(Circuit Breaker) 패턴 적용 여부를 확인하세요.
+    - 전역 예외 필터(Global Exception Filter)가 모든 예상치 못한 오류를 일관되게 처리하는지 검토하세요.
+4.  **트랜잭션 관리 검토**:
+    - `TypeORM`을 사용하는 서비스에서 여러 DB 작업을 하나의 논리적 단위로 묶는 트랜잭션(`@Transactional` 등)이 적절하게 적용되었는지 확인하세요. 특히, 거래 기록 생성, 상태 업데이트 등 중요한 비즈니스 로직을 중심으로 분석하세요.
+5.  **평가 기록**: 위의 모든 분석 내용과 발견된 문제점, 그리고 개선 제안을 `review.md` 파일에 "Phase 1: 안정성 강화" 섹션 아래에 작성하세요.
 
 ---
 
-## **Part 3: Build the User Control Panel (Frontend)**
+### Phase 2: 성능 최적화 (Performance Optimization)
 
-### Step 3.1: Create the Backtesting Control Panel Page
+**목표**: 시스템의 주요 성능 병목 지점을 식별하고 개선 방안을 제시합니다. (현재는 백테스팅 단계이므로 실 운영 환경의 `env` 설정은 고려하지 않습니다.)
 
-1.  In the `kimP-Dashboard-FE` app, create a new page at `/backtesting`.
-2.  This page will be the main interface for running simulations. It must include:
-    - Input fields for: "Minimum Entry Spread (%)", "Maximum Rebalance Loss (%)", and "Investment Amount per Trade (KRW)".
-    - Dropdowns to select the datasets to use for Upbit and Binance (populated from `GET /api/backtest/datasets`).
-    - A "Start Backtest" button.
+**작업 지침**:
 
-### Step 3.2: Implement the Workflow
+1.  **데이터베이스 쿼리 분석**:
+    - `Dashboard-BE`와 백테스팅 모듈에서 사용되는 `TypeORM` 쿼리 중 복잡한 JOIN이나 비효율적인 조회가 있는지 분석하세요.
+    - 필수적인 인덱스(Index)가 누락된 테이블이 있는지 확인하고, 인덱스 추가를 제안하세요.
+2.  **WebSocket 통신 분석**:
+    - `Dashboard-BE`와 `Dashboard-FE` 간의 실시간 데이터(예: 현재 차익거래 상황, 로그) 전송 로직을 검토하세요. 불필요하게 많은 데이터를 전송하거나, 너무 자주 이벤트를 발생시키는 부분이 있는지 확인하세요.
+3.  **백테스팅 데이터 처리**:
+    - 백테스팅 실행 시 대량의 과거 데이터를 읽고 처리하는 과정에서 메모리 누수나 과도한 CPU 사용 가능성이 있는지 분석하세요. 데이터 스트리밍이나 청크(Chunk) 단위 처리 방안을 검토하세요.
+4.  **평가 기록**: 분석 결과와 성능 개선 제안을 `review.md`의 "Phase 2: 성능 최적화" 섹션 아래에 작성하세요.
 
-1.  When the user clicks "Start Backtest", the frontend sends the parameters to `POST /api/backtest/sessions`.
-2.  The backend creates the session and returns a `sessionId`.
-3.  The frontend then displays instructions for the user to run the `Feeder` in their terminal with the new `SESSION_ID`.
-4.  The user can then navigate to the `Results Dashboard` page, which will now take a `sessionId` as a parameter to show the results for that specific test run.
+---
+
+### Phase 3: 코드 품질 및 일관성 (Code Quality & Consistency)
+
+**목표**: 전체 Monorepo에 걸쳐 코드 스타일, 명명 규칙, 아키텍처 패턴의 일관성을 확보하고 리팩토링이 필요한 부분을 식별합니다.
+
+**작업 지침**:
+
+1.  **코드 스타일 및 포맷팅**: 설정된 ESLint 및 Prettier 규칙이 모든 패키지와 앱에 일관되게 적용되고 있는지 확인하세요.
+2.  **명명 규칙**: 변수, 함수, 클래스, 파일명의 명명 규칙이 마이크로서비스 간에 일관성이 있는지 검토하세요. (예: `service` vs `provider`, `dto` vs `payload`)
+3.  **모듈 구조**: NestJS 프로젝트(`Feeder`, `Initiator`, `Finalizer`, `Dashboard-BE`) 내에서 모듈(Module), 컨트롤러(Controller), 서비스(Service), 리포지토리(Repository)의 역할 분리가 명확한지, 순환 참조(Circular Dependency)는 없는지 분석하세요.
+4.  **중복 코드**: `kimp-core` 공유 라이브러리를 충분히 활용하고 있는지, 혹은 여러 서비스에 걸쳐 중복된 로직이 존재하는지 확인하세요.
+5.  **평가 기록**: 리팩토링이 필요한 부분과 코드 일관성 개선 제안을 `review.md`의 "Phase 3: 코드 품질 및 일관성" 섹션 아래에 작성하세요.
+
+---
+
+### Phase 4: 문서 완성도 향상 (Documentation Improvement)
+
+**목표**: 기존 문서를 최신화하고, 미래의 팀원들을 위한 상세한 기술 문서를 작성합니다.
+
+**작업 지침**:
+
+1.  **API 명세서 작성**:
+    - `Dashboard-BE`의 모든 API 엔드포인트에 대한 명세서를 작성하세요. (예: Swagger/OpenAPI 자동 생성 설정 또는 `docs/API.md` 파일 생성)
+2.  **운영 가이드 작성**:
+    - `docs/OPERATION_GUIDE.md` 파일을 생성하고, 개발 환경에서 전체 시스템(모든 마이크로서비스, DB, Redis)을 실행하는 단계별 가이드를 작성하세요.
+3.  **프론트엔드 화면 기능 설명**:
+    - `apps/dashboard-fe/README.md` 파일을 생성하거나 업데이트하여, 각 화면(페이지)의 역할과 핵심 기능을 설명하는 문서를 작성하세요. 아래 구조를 참고하세요.
+
+    ***
+
+    ### **Dashboard-FE 화면별 기능 설명**
+    - **/ (메인 대시보드)**
+      - **역할**: 실시간 차익거래 기회 및 현재 시스템 상태를 한눈에 모니터링합니다.
+      - **주요 기능**: 실시간 가격 변동 차트, 최근 발생한 차익거래 기회 목록, 각 거래소의 연결 상태 표시.
+    - **/backtesting**
+      - **역할**: 과거 데이터를 이용해 거래 전략을 테스트하고 성능을 평가합니다.
+      - **주요 기능**: 백테스팅 기간 설정, 거래 전략 파라미터 입력, 백테스팅 실행 및 결과 요약 (총수익률, 승률 등) 보기, 상세 결과 페이지로 이동.
+    - **/backtesting/[id]**
+      - **역할**: 특정 백테스팅 실행의 상세 결과를 분석합니다.
+      - **주요 기능**: 전체 거래 내역 타임라인, 기간별 손익 그래프, 상세 로그 데이터 확인.
+    - **/live-trading**
+      - **역할**: 현재 자동으로 실행 중인 실시간 거래의 상세 내역을 추적합니다.
+      - **주요 기능**: 진행 중인 거래 목록, 체결된 거래 내역, 실시간 로그 스트리밍.
+    - **/settings**
+      - **역할**: 시스템 운영에 필요한 설정을 관리합니다.
+      - **주요 기능**: 거래소 API 키 관리, 거래 허용/차단 코인 설정, 알림(슬랙, 텔레그램) 설정.
+
+    ***
+
+4.  **평가 기록**: 문서화 작업의 진행 상황과 결과물 위치를 `review.md`의 "Phase 4: 문서 완성도 향상" 섹션 아래에 기록하세요.
+
+---
+
+이 지침에 따라 작업을 시작해주세요. 각 단계가 완료될 때마다 진행 상황을 보고하고, 질문이 있다면 언제든지 물어보세요.
