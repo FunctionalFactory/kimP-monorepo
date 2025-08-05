@@ -97,7 +97,10 @@ export default function BacktestingPage() {
     }
   };
 
-  const handleInputChange = (field: keyof BacktestParameters, value: string | number) => {
+  const handleInputChange = (
+    field: keyof BacktestParameters,
+    value: string | number,
+  ) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -134,11 +137,15 @@ export default function BacktestingPage() {
   };
 
   const getUpbitDatasets = () => {
-    return datasets.filter((dataset) => dataset.exchange.toLowerCase() === 'upbit');
+    return datasets.filter(
+      (dataset) => dataset.exchange.toLowerCase() === 'upbit',
+    );
   };
 
   const getBinanceDatasets = () => {
-    return datasets.filter((dataset) => dataset.exchange.toLowerCase() === 'binance');
+    return datasets.filter(
+      (dataset) => dataset.exchange.toLowerCase() === 'binance',
+    );
   };
 
   const isFormValid = () => {
@@ -175,12 +182,17 @@ export default function BacktestingPage() {
                   type="number"
                   value={formData.minSpread}
                   onChange={(e) =>
-                    handleInputChange('minSpread', parseFloat(e.target.value) || 0)
+                    handleInputChange(
+                      'minSpread',
+                      parseFloat(e.target.value) || 0,
+                    )
                   }
                   inputProps={{ step: 0.1, min: 0 }}
                   helperText="차익거래를 시작할 최소 스프레드 비율"
                   InputProps={{
-                    startAdornment: <TrendingUp sx={{ mr: 1, color: 'text.secondary' }} />,
+                    startAdornment: (
+                      <TrendingUp sx={{ mr: 1, color: 'text.secondary' }} />
+                    ),
                   }}
                 />
 
@@ -190,12 +202,17 @@ export default function BacktestingPage() {
                   type="number"
                   value={formData.maxLoss}
                   onChange={(e) =>
-                    handleInputChange('maxLoss', parseFloat(e.target.value) || 0)
+                    handleInputChange(
+                      'maxLoss',
+                      parseFloat(e.target.value) || 0,
+                    )
                   }
                   inputProps={{ step: 0.1, min: 0 }}
                   helperText="재균형 시 허용할 최대 손실 비율"
                   InputProps={{
-                    startAdornment: <Error sx={{ mr: 1, color: 'text.secondary' }} />,
+                    startAdornment: (
+                      <Error sx={{ mr: 1, color: 'text.secondary' }} />
+                    ),
                   }}
                 />
 
@@ -213,7 +230,9 @@ export default function BacktestingPage() {
                   inputProps={{ min: 10000 }}
                   helperText="각 거래에서 사용할 투자 금액"
                   InputProps={{
-                    startAdornment: <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />,
+                    startAdornment: (
+                      <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />
+                    ),
                   }}
                 />
 
@@ -255,15 +274,15 @@ export default function BacktestingPage() {
                     거래소 선택
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <Chip 
-                      label="UPBIT" 
-                      color="primary" 
+                    <Chip
+                      label="UPBIT"
+                      color="primary"
                       variant="outlined"
                       sx={{ flex: 1 }}
                     />
-                    <Chip 
-                      label="BINANCE" 
-                      color="primary" 
+                    <Chip
+                      label="BINANCE"
+                      color="primary"
                       variant="outlined"
                       sx={{ flex: 1 }}
                     />
@@ -317,7 +336,11 @@ export default function BacktestingPage() {
                       }
                       InputLabelProps={{ shrink: true }}
                       InputProps={{
-                        startAdornment: <CalendarToday sx={{ mr: 1, color: 'text.secondary' }} />,
+                        startAdornment: (
+                          <CalendarToday
+                            sx={{ mr: 1, color: 'text.secondary' }}
+                          />
+                        ),
                       }}
                     />
                     <TextField
@@ -330,7 +353,11 @@ export default function BacktestingPage() {
                       }
                       InputLabelProps={{ shrink: true }}
                       InputProps={{
-                        startAdornment: <CalendarToday sx={{ mr: 1, color: 'text.secondary' }} />,
+                        startAdornment: (
+                          <CalendarToday
+                            sx={{ mr: 1, color: 'text.secondary' }}
+                          />
+                        ),
                       }}
                     />
                   </Box>
