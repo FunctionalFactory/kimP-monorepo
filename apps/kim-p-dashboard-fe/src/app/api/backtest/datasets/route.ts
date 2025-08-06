@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const response = await fetch('http://localhost:4000/api/backtest/datasets', {
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      'http://localhost:4000/api/backtest/datasets',
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`Backend API responded with status: ${response.status}`);
@@ -18,7 +21,7 @@ export async function GET() {
     console.error('Error fetching datasets:', error);
     return NextResponse.json(
       { error: 'Failed to fetch datasets' },
-      { status: 500 }
+      { status: 500 },
     );
   }
-} 
+}

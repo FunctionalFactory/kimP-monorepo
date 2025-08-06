@@ -84,7 +84,7 @@ export default function BacktestingPage() {
       setLoading(true);
       const response = await fetch('/api/backtest/datasets');
       const data = await response.json();
-      
+
       // API 라우트에서 직접 배열을 반환하므로 success 체크 제거
       if (Array.isArray(data)) {
         setDatasets(data);
