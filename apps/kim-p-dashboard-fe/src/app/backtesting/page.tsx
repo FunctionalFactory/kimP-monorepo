@@ -82,12 +82,12 @@ export default function BacktestingPage() {
   const fetchDatasets = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        'http://localhost:4000/api/backtest/datasets',
-      );
+      const response = await fetch('/api/backtest/datasets');
       const data = await response.json();
-      if (data.success) {
-        setDatasets(data.data);
+      
+      // API 라우트에서 직접 배열을 반환하므로 success 체크 제거
+      if (Array.isArray(data)) {
+        setDatasets(data);
       } else {
         setError('데이터셋을 불러오는 중 오류가 발생했습니다.');
       }
@@ -114,16 +114,13 @@ export default function BacktestingPage() {
     setError(null);
 
     try {
-      const response = await fetch(
-        'http://localhost:4000/api/backtest/sessions',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData),
+      const response = await fetch('/api/backtest/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      );
+        body: JSON.stringify(formData),
+      });
 
       const data = await response.json();
 
