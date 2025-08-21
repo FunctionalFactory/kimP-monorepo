@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
-import { BacktestSessionService, BacktestDatasetService } from '@app/kimp-core';
+import {
+  BacktestSessionService,
+  BacktestDatasetService,
+  BacktestSessionStatus,
+} from '@app/kimp-core';
 import * as fs from 'fs';
-import * as csv from 'csv-parser';
-import { createReadStream } from 'fs';
 import { promisify } from 'util';
 
 interface BacktestSessionCreatedEvent {
@@ -14,11 +16,11 @@ interface BacktestSessionCreatedEvent {
 
 interface CsvRow {
   timestamp: string;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
 @Injectable()
@@ -50,7 +52,9 @@ export class BacktestPlayerService {
       }
 
       // 2. 데이터셋 정보 조회
-      const dataset = await this.backtestDatasetService.findById(session.datasetId);
+      const dataset = await this.backtestDatasetService.findById(
+        session.datasetId,
+      );
       if (!dataset) {
         throw new Error(`데이터셋을 찾을 수 없습니다: ${session.datasetId}`);
       }
@@ -60,22 +64,31 @@ export class BacktestPlayerService {
       this.logger.log(`세션 상태를 RUNNING으로 업데이트: ${sessionId}`);
 
       // 4. CSV 파일 읽기 및 데이터 전송
-      await this.processCsvFile(dataset.filePath, sessionId, session.parameters);
+      await this.processCsvFile(
+        dataset.filePath,
+        sessionId,
+        session.parameters,
+      );
 
       // 5. 세션 완료 처리
-      await this.backtestSessionService.updateStatus(sessionId, 'COMPLETED');
+      await this.backtestSessionService.updateStatus(
+        sessionId,
+        BacktestSessionStatus.COMPLETED,
+      );
       this.logger.log(`백테스트 세션 완료: ${sessionId}`);
-
     } catch (error) {
-      this.logger.error(`백테스트 플레이어 오류: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `백테스트 플레이어 오류: ${error.message}`,
+        error.stack,
+      );
+
       // 오류 발생 시 세션을 FAILED로 업데이트
       try {
         await this.backtestSessionService.markAsFailed(sessionId);
       } catch (updateError) {
         this.logger.error(`세션 상태 업데이트 실패: ${updateError.message}`);
       }
-      
+
       throw error;
     }
   }
@@ -85,43 +98,53 @@ export class BacktestPlayerService {
     sessionId: string,
     parameters: any,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const results: CsvRow[] = [];
-      let rowCount = 0;
-      const batchSize = 100; // 배치 크기
-
+    try {
       this.logger.log(`CSV 파일 처리 시작: ${filePath}`);
 
-      createReadStream(filePath)
-        .pipe(csv())
-        .on('data', (row: CsvRow) => {
-          results.push(row);
+      const fileContent = await promisify(fs.readFile)(filePath, 'utf-8');
+      const lines = fileContent.split('\n').filter((line) => line.trim());
+
+      // 헤더 제거
+      const headers = lines[0].split(',');
+      const dataLines = lines.slice(1);
+
+      let rowCount = 0;
+      const batchSize = 100; // 배치 크기
+      let currentBatch: CsvRow[] = [];
+
+      for (const line of dataLines) {
+        const values = line.split(',');
+        if (values.length >= 6) {
+          const row: CsvRow = {
+            timestamp: values[0],
+            open: parseFloat(values[1]) || 0,
+            high: parseFloat(values[2]) || 0,
+            low: parseFloat(values[3]) || 0,
+            close: parseFloat(values[4]) || 0,
+            volume: parseFloat(values[5]) || 0,
+          };
+
+          currentBatch.push(row);
           rowCount++;
 
           // 배치 크기에 도달하면 데이터 전송
-          if (results.length >= batchSize) {
-            this.sendBatchToRedis(results, sessionId, parameters);
-            results.length = 0; // 배열 초기화
+          if (currentBatch.length >= batchSize) {
+            await this.sendBatchToRedis(currentBatch, sessionId, parameters);
+            currentBatch = []; // 배열 초기화
           }
-        })
-        .on('end', async () => {
-          try {
-            // 남은 데이터 전송
-            if (results.length > 0) {
-              await this.sendBatchToRedis(results, sessionId, parameters);
-            }
+        }
+      }
 
-            this.logger.log(`CSV 파일 처리 완료: ${rowCount}개 행 처리됨`);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        })
-        .on('error', (error) => {
-          this.logger.error(`CSV 파일 읽기 오류: ${error.message}`);
-          reject(error);
-        });
-    });
+      // 남은 데이터 전송
+      if (currentBatch.length > 0) {
+        await this.sendBatchToRedis(currentBatch, sessionId, parameters);
+      }
+
+      this.logger.log(`CSV 파일 처리 완료: ${rowCount}개 행 처리됨`);
+    } catch (error) {
+      this.logger.error(`CSV 파일 처리 오류: ${error.message}`);
+      throw error;
+    }
   }
 
   private async sendBatchToRedis(
@@ -137,11 +160,11 @@ export class BacktestPlayerService {
           timestamp: new Date(row.timestamp).toISOString(),
           symbol: 'ADA/KRW', // 기본값, 실제로는 데이터셋에서 추출해야 함
           exchange: 'UPBIT', // 기본값
-          price: parseFloat(row.close),
-          open: parseFloat(row.open),
-          high: parseFloat(row.high),
-          low: parseFloat(row.low),
-          volume: parseFloat(row.volume),
+          price: row.close,
+          open: row.open,
+          high: row.high,
+          low: row.low,
+          volume: row.volume,
           parameters, // 세션 파라미터 포함
         };
 
@@ -149,8 +172,7 @@ export class BacktestPlayerService {
         this.eventEmitter.emit('price.update', priceData);
 
         // 실제 환경에서는 약간의 지연을 두어 시뮬레이션
-        await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 지연
-
+        await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms 지연
       } catch (error) {
         this.logger.error(`데이터 전송 오류: ${error.message}`);
         throw error;

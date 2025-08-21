@@ -18,12 +18,8 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@app/kimp-core": [
-        "packages/kimp-core/src"
-      ],
-      "@app/kimp-core/*": [
-        "packages/kimp-core/src/*"
-      ]
+      "@app/kimp-core": ["packages/kimp-core/src"],
+      "@app/kimp-core/*": ["packages/kimp-core/src/*"]
     }
   }
 }

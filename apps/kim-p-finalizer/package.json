@@ -24,7 +24,7 @@
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^4.0.0",
-    "@app/kimp-core": "workspace:*",
+    "@app/kimp-core": "file:../../packages/kimp-core",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"
   },
@@ -48,7 +48,7 @@
     "ts-jest": "^29.1.0",
     "ts-loader": "^9.4.3",
     "ts-node": "^10.9.1",
-    "tsconfig-paths": "^4.2.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.1.3"
   },
   "jest": {

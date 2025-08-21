@@ -22,8 +22,9 @@ import {
   BacktestDatasetService,
 } from '@app/kimp-core';
 import { BacktestResultService } from './backtest-result.service';
+import type { BacktestResult } from './backtest-result.service';
 
-interface BacktestResult {
+interface LegacyBacktestResult {
   totalProfitLoss: number;
   roi: number;
   totalTrades: number;
@@ -276,7 +277,7 @@ export class BacktestingController {
   }
 
   @Get('results')
-  async getBacktestResults(): Promise<BacktestResult> {
+  async getBacktestResults(): Promise<LegacyBacktestResult> {
     try {
       // 최신 포트폴리오 로그 조회
       const latestPortfolio =

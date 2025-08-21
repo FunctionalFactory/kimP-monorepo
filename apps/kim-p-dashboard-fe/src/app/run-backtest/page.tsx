@@ -9,7 +9,6 @@ import {
   Step,
   StepLabel,
   StepContent,
-  Button,
   Alert,
   Paper,
   List,
@@ -19,11 +18,6 @@ import {
 } from '@mui/material';
 import {
   CheckCircle,
-  PlayArrow,
-  Settings,
-  Assessment,
-  Terminal,
-  Warning,
 } from '@mui/icons-material';
 
 const steps = [

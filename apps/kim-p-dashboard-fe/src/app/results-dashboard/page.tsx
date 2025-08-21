@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   CircularProgress,
   Alert,
   Table,
@@ -31,15 +30,6 @@ import {
   Refresh,
   Assessment,
 } from '@mui/icons-material';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 
 interface BacktestParameters {
   minSpread: number;
@@ -114,7 +104,7 @@ export default function ResultsDashboard() {
 
   useEffect(() => {
     fetchSessions();
-  }, []);
+  }, [fetchSessions]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('ko-KR', {

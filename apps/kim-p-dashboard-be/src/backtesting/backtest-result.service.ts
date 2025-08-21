@@ -64,13 +64,13 @@ export class BacktestResultService {
 
       // 2. 해당 세션의 모든 ArbitrageCycle 조회
       const cycles = await this.getArbitrageCyclesBySession(sessionId);
-      
+
       // 3. KPI 계산
       const kpi = this.calculateKPI(cycles, session.parameters.totalCapital);
-      
+
       // 4. 거래 상세 정보 변환
       const trades = this.convertToTradeDetails(cycles);
-      
+
       // 5. 누적 수익 계산
       const cumulativeProfit = this.calculateCumulativeProfit(trades);
 
@@ -91,18 +91,20 @@ export class BacktestResultService {
 
       this.logger.log(`백테스팅 결과 분석 완료: ${sessionId}`);
       return result;
-
     } catch (error) {
-      this.logger.error(`백테스팅 결과 분석 오류: ${error.message}`, error.stack);
+      this.logger.error(
+        `백테스팅 결과 분석 오류: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   private async getArbitrageCyclesBySession(sessionId: string): Promise<any[]> {
-    // TODO: ArbitrageCycle에 sessionId 필드가 없으므로, 
+    // TODO: ArbitrageCycle에 sessionId 필드가 없으므로,
     // 현재는 모든 완료된 사이클을 반환합니다.
     // 실제 구현에서는 sessionId로 필터링해야 합니다.
-    
+
     // 임시로 모든 완료된 사이클을 반환
     const cycles = await this.arbitrageRecordService.getAllCompletedCycles();
     return cycles || [];
@@ -128,14 +130,18 @@ export class BacktestResultService {
     }, 0);
 
     const totalTrades = cycles.length;
-    const winCount = cycles.filter(cycle => (cycle.totalNetProfitKrw || 0) > 0).length;
+    const winCount = cycles.filter(
+      (cycle) => (cycle.totalNetProfitKrw || 0) > 0,
+    ).length;
     const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0;
-    const averageProfitLoss = totalTrades > 0 ? totalProfitLoss / totalTrades : 0;
-    const totalRoi = initialCapital > 0 ? (totalProfitLoss / initialCapital) * 100 : 0;
+    const averageProfitLoss =
+      totalTrades > 0 ? totalProfitLoss / totalTrades : 0;
+    const totalRoi =
+      initialCapital > 0 ? (totalProfitLoss / initialCapital) * 100 : 0;
 
     // 최대 낙폭 계산
     const maxDrawdown = this.calculateMaxDrawdown(cycles, initialCapital);
-    
+
     // 샤프 비율 계산
     const sharpeRatio = this.calculateSharpeRatio(cycles);
 
@@ -153,7 +159,7 @@ export class BacktestResultService {
   }
 
   private convertToTradeDetails(cycles: any[]): TradeDetail[] {
-    return cycles.map(cycle => ({
+    return cycles.map((cycle) => ({
       id: cycle.id,
       startTime: cycle.startTime,
       endTime: cycle.endTime,
@@ -166,11 +172,15 @@ export class BacktestResultService {
     }));
   }
 
-  private calculateCumulativeProfit(trades: TradeDetail[]): Array<{ timestamp: Date; cumulativeProfit: number }> {
-    const sortedTrades = trades.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-    
+  private calculateCumulativeProfit(
+    trades: TradeDetail[],
+  ): Array<{ timestamp: Date; cumulativeProfit: number }> {
+    const sortedTrades = trades.sort(
+      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+    );
+
     let cumulativeProfit = 0;
-    return sortedTrades.map(trade => {
+    return sortedTrades.map((trade) => {
       cumulativeProfit += trade.profitLoss;
       return {
         timestamp: trade.startTime,
@@ -184,15 +194,17 @@ export class BacktestResultService {
     let maxDrawdown = 0;
     let currentValue = initialCapital;
 
-    const sortedCycles = cycles.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    const sortedCycles = cycles.sort(
+      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+    );
 
     for (const cycle of sortedCycles) {
       currentValue += cycle.totalNetProfitKrw || 0;
-      
+
       if (currentValue > peak) {
         peak = currentValue;
       }
-      
+
       const drawdown = ((peak - currentValue) / peak) * 100;
       if (drawdown > maxDrawdown) {
         maxDrawdown = drawdown;
@@ -205,15 +217,20 @@ export class BacktestResultService {
   private calculateSharpeRatio(cycles: any[]): number {
     if (cycles.length < 2) return 0;
 
-    const returns = cycles.map(cycle => cycle.totalNetProfitPercent || 0);
-    const meanReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
-    
-    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - meanReturn, 2), 0) / returns.length;
+    const returns = cycles.map((cycle) => cycle.totalNetProfitPercent || 0);
+    const meanReturn =
+      returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+
+    const variance =
+      returns.reduce((sum, ret) => sum + Math.pow(ret - meanReturn, 2), 0) /
+      returns.length;
     const standardDeviation = Math.sqrt(variance);
-    
+
     // 무위험 수익률을 0%로 가정
     const riskFreeRate = 0;
-    
-    return standardDeviation > 0 ? (meanReturn - riskFreeRate) / standardDeviation : 0;
+
+    return standardDeviation > 0
+      ? (meanReturn - riskFreeRate) / standardDeviation
+      : 0;
   }
 }

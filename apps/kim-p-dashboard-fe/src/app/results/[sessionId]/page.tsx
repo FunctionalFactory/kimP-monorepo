@@ -18,8 +18,6 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  Divider,
-  Stack,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -27,9 +25,6 @@ import {
   AccountBalance,
   Assessment,
   Timeline,
-  CheckCircle,
-  Error,
-  Schedule,
 } from '@mui/icons-material';
 
 interface BacktestKPI {
@@ -64,7 +59,7 @@ interface BacktestResult {
     createdAt: Date;
     startTime: Date;
     endTime: Date;
-    parameters: any;
+    parameters: Record<string, unknown>;
   };
   kpi: BacktestKPI;
   trades: TradeDetail[];
@@ -185,9 +180,9 @@ export default function BacktestResultPage() {
                 세션 ID: {result.sessionInfo.id}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                상태: <Chip 
+                상태:                 <Chip 
                   label={result.sessionInfo.status} 
-                  color={getStatusColor(result.sessionInfo.status) as any}
+                  color={getStatusColor(result.sessionInfo.status) as 'success' | 'error' | 'warning' | 'default'}
                   size="small"
                 />
               </Typography>
@@ -322,7 +317,7 @@ export default function BacktestResultPage() {
                       <TableCell>
                         <Chip 
                           label={trade.status} 
-                          color={getStatusColor(trade.status) as any}
+                          color={getStatusColor(trade.status) as 'success' | 'error' | 'warning' | 'default'}
                           size="small"
                         />
                       </TableCell>

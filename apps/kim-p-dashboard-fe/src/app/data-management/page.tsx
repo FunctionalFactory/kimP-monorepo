@@ -17,7 +17,6 @@ import {
   Paper,
   Alert,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import {
   CloudUpload,
