@@ -158,42 +158,46 @@ export class BacktestingController {
   async createBacktestSession(@Body() body: any) {
     try {
       const {
-        minSpread,
-        maxLoss,
+        datasetId,
+        totalCapital,
         investmentAmount,
-        upbitSymbol,
-        binanceSymbol,
-        timeframe,
-        startDate,
-        endDate,
+        minSpread = 0.5,
+        maxLoss = 10,
       } = body;
 
-      if (
-        !minSpread ||
-        !maxLoss ||
-        !investmentAmount ||
-        !upbitSymbol ||
-        !binanceSymbol ||
-        !timeframe
-      ) {
+      if (!datasetId || !totalCapital || !investmentAmount) {
         throw new HttpException(
-          '필수 파라미터가 누락되었습니다.',
+          'datasetId, totalCapital, investmentAmount는 필수 파라미터입니다.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // 데이터셋 존재 여부 확인
+      const dataset = await this.backtestDatasetService.findById(datasetId);
+      if (!dataset) {
+        throw new HttpException(
+          '지정된 데이터셋을 찾을 수 없습니다.',
           HttpStatus.BAD_REQUEST,
         );
       }
 
       const parameters = {
+        totalCapital,
+        investmentAmount,
         minSpread,
         maxLoss,
-        investmentAmount,
-        upbitSymbol,
-        binanceSymbol,
-        timeframe,
-        startDate,
-        endDate,
       };
 
-      const session = await this.backtestSessionService.create(parameters);
+      const session = await this.backtestSessionService.create({
+        datasetId,
+        parameters,
+      });
+
+      // Feeder의 백테스트 플레이어 실행을 위한 이벤트 발생
+      this.eventEmitter.emit('backtest.session.created', {
+        sessionId: session.id,
+        datasetId: session.datasetId,
+      });
 
       return {
         success: true,
@@ -202,6 +206,10 @@ export class BacktestingController {
           sessionId: session.id,
           status: session.status,
           parameters: session.parameters,
+          dataset: {
+            id: dataset.id,
+            name: dataset.name,
+          },
         },
       };
     } catch (error) {

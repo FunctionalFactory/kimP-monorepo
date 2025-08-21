@@ -25,16 +25,15 @@ export class BacktestSession {
   })
   status: BacktestSessionStatus;
 
+  @Column()
+  datasetId: string; // 사용할 BacktestDataset의 ID
+
   @Column({ type: 'json' })
   parameters: {
+    totalCapital: number;
+    investmentAmount: number;
     minSpread: number;
     maxLoss: number;
-    investmentAmount: number;
-    upbitSymbol: string;
-    binanceSymbol: string;
-    timeframe: string;
-    startDate: string;
-    endDate: string;
   };
 
   @Column({ type: 'json', nullable: true })

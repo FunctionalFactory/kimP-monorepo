@@ -13,48 +13,43 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   CircularProgress,
   Paper,
-  Divider,
-  Chip,
   Stack,
 } from '@mui/material';
 import {
   PlayArrow,
   Settings,
   Assessment,
-  CheckCircle,
-  Error,
-  CalendarToday,
-  TrendingUp,
   AccountBalance,
+  TrendingUp,
 } from '@mui/icons-material';
 
 interface Dataset {
   id: string;
   name: string;
-  exchange: string;
-  symbol: string;
-  timeframe: string;
-  status: string;
+  description?: string;
+  originalFileName: string;
+  fileSize: number;
+  createdAt: string;
 }
 
 interface BacktestParameters {
+  datasetId: string;
+  totalCapital: number;
+  investmentAmount: number;
   minSpread: number;
   maxLoss: number;
-  investmentAmount: number;
-  upbitSymbol: string;
-  binanceSymbol: string;
-  timeframe: string;
-  startDate: string;
-  endDate: string;
 }
 
 interface BacktestSession {
   sessionId: string;
   status: string;
   parameters: BacktestParameters;
+  dataset: {
+    id: string;
+    name: string;
+  };
 }
 
 export default function BacktestingPage() {
@@ -65,14 +60,11 @@ export default function BacktestingPage() {
 
   // Form state
   const [formData, setFormData] = useState<BacktestParameters>({
+    datasetId: '',
+    totalCapital: 10000000, // 1천만원
+    investmentAmount: 1000000, // 100만원
     minSpread: 0.5,
-    maxLoss: 0.1,
-    investmentAmount: 1000000,
-    upbitSymbol: '',
-    binanceSymbol: '',
-    timeframe: '1m',
-    startDate: '',
-    endDate: '',
+    maxLoss: 10,
   });
 
   useEffect(() => {
@@ -82,12 +74,11 @@ export default function BacktestingPage() {
   const fetchDatasets = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/backtest/datasets');
+      const response = await fetch('/api/datasets');
       const data = await response.json();
 
-      // API 라우트에서 직접 배열을 반환하므로 success 체크 제거
-      if (Array.isArray(data)) {
-        setDatasets(data);
+      if (data.success) {
+        setDatasets(data.datasets);
       } else {
         setError('데이터셋을 불러오는 중 오류가 발생했습니다.');
       }
@@ -138,46 +129,129 @@ export default function BacktestingPage() {
     }
   };
 
-  const getUpbitDatasets = () => {
-    return datasets.filter(
-      (dataset) => dataset.exchange.toLowerCase() === 'upbit',
-    );
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getBinanceDatasets = () => {
-    return datasets.filter(
-      (dataset) => dataset.exchange.toLowerCase() === 'binance',
-    );
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('ko-KR');
   };
 
   const isFormValid = () => {
-    return formData.upbitSymbol && formData.binanceSymbol && !loading;
+    return formData.datasetId && formData.totalCapital > 0 && formData.investmentAmount > 0 && !loading;
   };
 
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
-        백테스팅 컨트롤 패널
+        백테스팅 실행
       </Typography>
 
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          차익거래 전략의 파라미터를 설정하고 백테스트를 실행하세요. 결과는
-          Results Dashboard에서 확인할 수 있습니다.
+          업로드된 데이터셋을 선택하고 투자 전략을 설정하여 백테스팅을 실행하세요.
         </Typography>
       </Alert>
 
       <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-        {/* 파라미터 설정 */}
+        {/* 데이터셋 선택 */}
+        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Assessment sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h6">데이터셋 선택</Typography>
+              </Box>
+
+              <Stack spacing={3}>
+                <FormControl fullWidth>
+                  <InputLabel>백테스팅 데이터셋 *</InputLabel>
+                  <Select
+                    value={formData.datasetId}
+                    onChange={(e) =>
+                      handleInputChange('datasetId', e.target.value)
+                    }
+                    disabled={loading}
+                  >
+                    {datasets.map((dataset) => (
+                      <MenuItem key={dataset.id} value={dataset.id}>
+                        <Box>
+                          <Typography variant="body1" fontWeight="medium">
+                            {dataset.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {dataset.originalFileName} • {formatFileSize(dataset.fileSize)} • {formatDate(dataset.createdAt)}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {datasets.length === 0 && !loading && (
+                  <Alert severity="warning">
+                    업로드된 데이터셋이 없습니다. 먼저 Data Management에서 CSV 파일을 업로드해주세요.
+                  </Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* 전략 파라미터 */}
         <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
           <Card elevation={2}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Settings sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h6">전략 파라미터</Typography>
+                <Typography variant="h6">투자 전략 설정</Typography>
               </Box>
 
               <Stack spacing={3}>
+                <TextField
+                  fullWidth
+                  label="총 자본금 (KRW) *"
+                  type="number"
+                  value={formData.totalCapital}
+                  onChange={(e) =>
+                    handleInputChange(
+                      'totalCapital',
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  inputProps={{ min: 1000000 }}
+                  helperText="백테스팅에 사용할 총 자본금"
+                  InputProps={{
+                    startAdornment: (
+                      <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />
+                    ),
+                  }}
+                />
+
+                <TextField
+                  fullWidth
+                  label="세션당 투자 금액 (KRW) *"
+                  type="number"
+                  value={formData.investmentAmount}
+                  onChange={(e) =>
+                    handleInputChange(
+                      'investmentAmount',
+                      parseInt(e.target.value) || 0,
+                    )
+                  }
+                  inputProps={{ min: 100000 }}
+                  helperText="각 거래 세션에서 사용할 투자 금액"
+                  InputProps={{
+                    startAdornment: (
+                      <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />
+                    ),
+                  }}
+                />
+
                 <TextField
                   fullWidth
                   label="최소 진입 스프레드 (%)"
@@ -200,7 +274,7 @@ export default function BacktestingPage() {
 
                 <TextField
                   fullWidth
-                  label="최대 재균형 손실 (%)"
+                  label="최대 손실 제한 (%)"
                   type="number"
                   value={formData.maxLoss}
                   onChange={(e) =>
@@ -209,161 +283,14 @@ export default function BacktestingPage() {
                       parseFloat(e.target.value) || 0,
                     )
                   }
-                  inputProps={{ step: 0.1, min: 0 }}
-                  helperText="재균형 시 허용할 최대 손실 비율"
+                  inputProps={{ step: 0.1, min: 0, max: 100 }}
+                  helperText="손실 제한 비율 (0-100%)"
                   InputProps={{
                     startAdornment: (
-                      <Error sx={{ mr: 1, color: 'text.secondary' }} />
+                      <TrendingUp sx={{ mr: 1, color: 'text.secondary' }} />
                     ),
                   }}
                 />
-
-                <TextField
-                  fullWidth
-                  label="거래당 투자 금액 (KRW)"
-                  type="number"
-                  value={formData.investmentAmount}
-                  onChange={(e) =>
-                    handleInputChange(
-                      'investmentAmount',
-                      parseInt(e.target.value) || 0,
-                    )
-                  }
-                  inputProps={{ min: 10000 }}
-                  helperText="각 거래에서 사용할 투자 금액"
-                  InputProps={{
-                    startAdornment: (
-                      <AccountBalance sx={{ mr: 1, color: 'text.secondary' }} />
-                    ),
-                  }}
-                />
-
-                <FormControl fullWidth>
-                  <InputLabel>타임프레임</InputLabel>
-                  <Select
-                    value={formData.timeframe}
-                    onChange={(e) =>
-                      handleInputChange('timeframe', e.target.value)
-                    }
-                  >
-                    <MenuItem value="1m">1분</MenuItem>
-                    <MenuItem value="3m">3분</MenuItem>
-                    <MenuItem value="5m">5분</MenuItem>
-                    <MenuItem value="15m">15분</MenuItem>
-                    <MenuItem value="30m">30분</MenuItem>
-                    <MenuItem value="1h">1시간</MenuItem>
-                    <MenuItem value="4h">4시간</MenuItem>
-                    <MenuItem value="1d">1일</MenuItem>
-                  </Select>
-                </FormControl>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* 데이터셋 선택 */}
-        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Assessment sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h6">데이터셋 선택</Typography>
-              </Box>
-
-              <Stack spacing={3}>
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    거래소 선택
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <Chip
-                      label="UPBIT"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ flex: 1 }}
-                    />
-                    <Chip
-                      label="BINANCE"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-
-                <FormControl fullWidth>
-                  <InputLabel>Upbit 데이터셋</InputLabel>
-                  <Select
-                    value={formData.upbitSymbol}
-                    onChange={(e) =>
-                      handleInputChange('upbitSymbol', e.target.value)
-                    }
-                  >
-                    {getUpbitDatasets().map((dataset) => (
-                      <MenuItem key={dataset.id} value={dataset.symbol}>
-                        {dataset.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl fullWidth>
-                  <InputLabel>Binance 데이터셋</InputLabel>
-                  <Select
-                    value={formData.binanceSymbol}
-                    onChange={(e) =>
-                      handleInputChange('binanceSymbol', e.target.value)
-                    }
-                  >
-                    {getBinanceDatasets().map((dataset) => (
-                      <MenuItem key={dataset.id} value={dataset.symbol}>
-                        {dataset.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    기간 설정 (선택사항)
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <TextField
-                      fullWidth
-                      label="시작 날짜"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) =>
-                        handleInputChange('startDate', e.target.value)
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      InputProps={{
-                        startAdornment: (
-                          <CalendarToday
-                            sx={{ mr: 1, color: 'text.secondary' }}
-                          />
-                        ),
-                      }}
-                    />
-                    <TextField
-                      fullWidth
-                      label="종료 날짜"
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) =>
-                        handleInputChange('endDate', e.target.value)
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      InputProps={{
-                        startAdornment: (
-                          <CalendarToday
-                            sx={{ mr: 1, color: 'text.secondary' }}
-                          />
-                        ),
-                      }}
-                    />
-                  </Box>
-                </Box>
               </Stack>
             </CardContent>
           </Card>
@@ -375,7 +302,7 @@ export default function BacktestingPage() {
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <PlayArrow sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="h6">백테스트 실행</Typography>
+            <Typography variant="h6">백테스팅 실행</Typography>
           </Box>
 
           {error && (
@@ -387,9 +314,11 @@ export default function BacktestingPage() {
           {session && (
             <Alert severity="success" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                <strong>백테스트 세션이 생성되었습니다!</strong>
+                <strong>백테스팅 세션이 성공적으로 생성되었습니다!</strong>
                 <br />
                 세션 ID: {session.sessionId}
+                <br />
+                데이터셋: {session.dataset.name}
                 <br />
                 상태: {session.status}
               </Typography>
@@ -404,32 +333,19 @@ export default function BacktestingPage() {
             startIcon={loading ? <CircularProgress size={20} /> : <PlayArrow />}
             sx={{ mt: 2 }}
           >
-            {loading ? '백테스트 시작 중...' : '백테스트 시작'}
+            {loading ? '백테스팅 시작 중...' : '백테스팅 시작'}
           </Button>
 
           {session && (
             <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
               <Typography variant="subtitle2" gutterBottom>
-                다음 단계:
+                백테스팅 진행 상황:
               </Typography>
               <Typography variant="body2" paragraph>
-                1. 터미널에서 다음 명령어를 실행하세요:
+                백테스팅이 자동으로 시작되었습니다. 진행 상황은 시스템 로그에서 확인할 수 있습니다.
               </Typography>
-              <Box
-                component="pre"
-                sx={{
-                  bgcolor: 'grey.100',
-                  p: 1,
-                  borderRadius: 1,
-                  fontSize: '0.875rem',
-                  overflow: 'auto',
-                }}
-              >
-                {`cd apps/kim-p-feeder
-SESSION_ID=${session.sessionId} FEEDER_MODE=backtest npm run start`}
-              </Box>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                2. 백테스트가 완료되면 Results Dashboard에서 결과를 확인하세요.
+              <Typography variant="body2">
+                완료 후 Results Dashboard에서 상세한 결과를 확인하세요.
               </Typography>
             </Paper>
           )}

@@ -13,12 +13,14 @@ export class BacktestSessionService {
     private readonly backtestSessionRepository: Repository<BacktestSession>,
   ) {}
 
-  async create(
-    parameters: BacktestSession['parameters'],
-  ): Promise<BacktestSession> {
+  async create(data: {
+    datasetId: string;
+    parameters: BacktestSession['parameters'];
+  }): Promise<BacktestSession> {
     const session = this.backtestSessionRepository.create({
       status: BacktestSessionStatus.PENDING,
-      parameters,
+      datasetId: data.datasetId,
+      parameters: data.parameters,
     });
     return await this.backtestSessionRepository.save(session);
   }
