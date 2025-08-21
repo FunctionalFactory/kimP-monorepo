@@ -5,7 +5,7 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   try {
-    const { sessionId } = await params;
+    const { sessionId } = params;
 
     if (!sessionId) {
       return NextResponse.json(

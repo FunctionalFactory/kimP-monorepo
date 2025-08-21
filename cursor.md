@@ -1,91 +1,95 @@
-# Mission: [Final Phase] 시스템 종합 테스트 및 UI 완성
+# Mission: [Hotfix] `Feeder` 서비스의 의존성 주입 오류 해결
 
-## 1. 프로젝트 브리핑 (for AI Assistant)
+## 1. 프로젝트 브리핑 (for New AI Assistant)
 
-안녕하세요. 당신은 `kimP-monorepo` 프로젝트의 최종 안정화 및 완성을 책임지는 AI 어시스턴트입니다. 우리는 3단계에 걸쳐 데이터 준비, 실행, 결과 분석 기능을 모두 갖춘 백테스팅 시스템의 핵심 개발을 완료했습니다.
+안녕하세요. 당신은 `kimP-monorepo` 프로젝트의 긴급 오류 수정을 담당할 AI 어시스턴트입니다. 현재 `kim-p-feeder` 애플리케이션 실행 시, NestJS의 의존성 주입(Dependency Injection) 문제로 인해 애플리케이션이 시작되지 못하는 심각한 오류가 발생하고 있습니다.
 
-당신의 임무는 두 가지입니다.
-
-1.  **종합 테스트**: 지금까지 개발된 모든 기능(Phase 1, 2, 3)이 서로 유기적으로 완벽하게 작동하는지 End-to-End 테스트를 통해 검증하고, 발견된 모든 오류를 수정합니다.
-2.  **UI 완성**: 이전에 발생했던 `recharts` 패키지 설치 문제를 해결하고, 결과 대시보드에 자산 변화 그래프를 추가하여 시스템을 100% 완성합니다.
-
-**작업 브랜치**: `main` 브랜치에서 시작하여 `feature/final-stabilization-and-ui` 라는 새로운 브랜치를 생성하고, 그곳에서 모든 작업을 진행하세요.
+당신의 임무는 이 오류의 근본 원인을 파악하고, 아키텍처 원칙에 맞게 코드를 리팩토링하여 문제를 해결하는 것입니다.
 
 ---
 
-## 2. 오늘의 임무: [Part 1] 전체 시스템 종합 점검 (E2E Test)
+## 2. 오류 분석 (Root Cause Analysis)
 
-가장 먼저, 우리가 만든 시스템이 처음부터 끝까지 오류 없이 작동하는지 실제 사용자의 시나리오 그대로 테스트합니다.
+**오류 메시지:**
+`Nest can't resolve dependencies of the PriceFeedService (...). Please make sure that the argument FeederBacktestSessionService at index [5] is available in the PriceFeedModule context.`
 
-### **Task 1: E2E 테스트 시나리오 수행**
+**분석:**
 
-아래 시나리오를 순서대로 수행하며, 각 단계에서 모든 마이크로서비스(`Dashboard-BE`, `Feeder` 등)의 터미널 로그에 오류가 출력되지 않는지 면밀히 확인하세요.
+1.  **`PriceFeedService`**는 생성자(constructor)를 통해 **`FeederBacktestSessionService`**라는 서비스를 주입받으려고 합니다.
+2.  이 `FeederBacktestSessionService`는 `Feeder` 앱 내(`apps/kim-p-feeder/src/backtest-session/`)에 위치하며, 백테스팅의 상태 관리와 같은 복잡한 애플리케이션 로직을 담고 있습니다.
+3.  반면, `kimp-core` 패키지에는 데이터베이스와 직접 통신하는 순수한 DB 관리용 **`BacktestSessionService`**가 존재합니다.
+4.  최근 리팩토링으로 인해 `PriceFeedService`가 `kimp-core`의 `BacktestSessionService`를 직접 주입받도록 변경되었으나, `PriceFeedService` 내부에 남아있는 `startBacktestMode` 메서드는 여전히 `Feeder` 앱 전용 로직(`initializeSession` 등)을 호출하고 있어 타입 오류가 발생합니다.
 
-1.  **데이터 업로드 (Phase 1 기능 검증)**
-    - 웹 브라우저에서 `/data-management` 페이지로 이동합니다.
-    - 테스트용 CSV 데이터셋 파일을 성공적으로 업로드합니다.
-    - 업로드 후, 목록 테이블에 해당 데이터셋이 정상적으로 표시되는지 확인합니다.
-
-2.  **백테스팅 실행 (Phase 2 기능 검증)**
-    - `/backtesting` 페이지로 이동합니다.
-    - 방금 업로드한 데이터셋을 드롭다운 메뉴에서 선택합니다.
-    - 총자본(예: 10000000), 세션당 투자금(예: 1000000) 등 파라미터를 입력하고 '백테스팅 시작' 버튼을 클릭합니다.
-    - `Dashboard-BE`와 `Feeder`의 로그를 확인하여, 백테스팅 세션이 생성되고 '백테스트 플레이어'가 정상적으로 작동을 시작했는지 확인합니다.
-    - `Initiator`와 `Finalizer`의 로그를 통해, 거래 시뮬레이션과 결과 기록이 오류 없이 진행되는지 확인합니다.
-
-3.  **결과 확인 (Phase 3 기능 검증)**
-    - 백테스팅이 완료된 후, `/results/[sessionId]` 페이지로 이동합니다. (현재는 목록에서 클릭하는 기능이 없으므로, DB에서 `sessionId`를 직접 찾아 URL에 입력하여 접속하세요.)
-    - KPI 요약 카드와 상세 거래 내역 테이블에 데이터가 깨짐 없이 정상적으로 표시되는지 확인합니다.
-
-### **Task 2: 버그 수정**
-
-만약 위 E2E 테스트 과정에서 어떤 종류의 오류(서버 에러, UI 깨짐, 데이터 불일치 등)라도 발견되면, 즉시 원인을 분석하고 코드를 수정하여 문제를 해결해야 합니다. 모든 시나리오가 완벽하게 성공할 때까지 이 과정을 반복합니다.
+**결론**: 문제의 근본 원인은 **역할과 책임의 분리가 무너진 것**입니다. `PriceFeedService`가 자신의 핵심 책임(실시간 가격 데이터 수신)을 넘어, 백테스팅 실행이라는 다른 서비스의 책임을 침범하고 있기 때문에 복잡한 의존성 문제가 발생했습니다.
 
 ---
 
-## 3. 오늘의 임무: [Part 2] `recharts` 설치 및 자산 그래프 구현
+## 3. 해결 계획 (Refactoring Plan)
 
-종합 점검이 완료되면, 마지막 UI 기능을 추가하여 프로젝트를 완성합니다.
+오류를 해결하고 더 나은 구조를 만들기 위해, 각 서비스의 역할을 명확히 재정의하고 코드를 그에 맞게 재배치합니다.
 
-### **Task 3: `recharts` 패키지 문제 해결**
-
-`kim-p-dashboard-fe` 앱에 `recharts` 라이브러리를 설치합니다. 모노레포 환경이므로, 반드시 **워크스페이스 명령어**를 사용해야 합니다.
-
-1.  **패키지 설치**: 프로젝트 루트 디렉토리에서 아래 명령어를 실행하세요.
-    ```bash
-    yarn workspace @kim-p-monorepo/kim-p-dashboard-fe add recharts
-    ```
-2.  **의존성 충돌 해결**: 만약 설치 시 `peer dependency` (피어 의존성) 충돌 오류가 발생한다면, 오류 메시지를 주의 깊게 읽어보세요. `recharts`가 요구하는 `react` 버전과 현재 프로젝트의 `react` 버전이 맞지 않을 수 있습니다. `package.json` 파일을 수정하여 버전을 맞추거나, 필요한 경우 관련 라이브러리를 함께 업데이트하여 문제를 해결하세요.
-
-### **Task 4: 자산 그래프 구현**
-
-1.  **파일 경로**: `app/results/[sessionId]/page.tsx`
-2.  **UI 구현**: `recharts`가 성공적으로 설치되면, 이 라이브러리를 사용하여 **자산 그래프** 컴포넌트를 구현하세요.
-    - `GET /backtest/sessions/:id/results` API에서 받은 상세 거래 내역 데이터를 가공하여, 시간에 따른 누적 수익(`cumulativeProfit`) 데이터를 만듭니다.
-    - `recharts`의 `LineChart` 컴포넌트를 사용하여, X축은 시간, Y축은 누적 수익을 나타내는 선 그래프를 그립니다.
+- **`PriceFeedService`**: 오직 **실시간 가격 데이터를 수신**하는 책임만 맡습니다. 백테스팅 실행 관련 코드는 모두 제거합니다.
+- **`BacktestPlayerService`**: 백테스팅 모드일 때 **CSV 데이터를 읽고, 백테스팅의 전체 흐름을 제어**하는 모든 책임을 맡습니다.
 
 ---
 
-## 4. 최종 완료 보고: `review.md` 파일 작성
+## 4. 작업 지침 (Instructions)
 
-모든 작업이 완료되면, 프로젝트 루트의 `review.md` 파일에 최종 완료 보고서를 작성해주세요.
+### Task 1: `PriceFeedService` 역할 단순화
+
+`PriceFeedService`에서 백테스팅 관련 로직을 완전히 분리하여 순수한 '가격 정보 제공자'로 만듭니다.
+
+1.  **파일 경로**: `apps/kim-p-feeder/src/price-feed/price-feed.service.ts`
+2.  **수정 내용**:
+    - 생성자(constructor)에서 `backtestSessionService` 주입을 **완전히 제거**하세요.
+    - `onModuleInit` 메서드를 수정하여, `APP_MODE`가 `backtest`일 때는 아무 동작도 하지 않고 로그만 남기도록 변경하세요. 실시간 피드 연결 로직은 `live` 모드일 때만 실행되어야 합니다.
+    - 파일 하단에 있는 `startBacktestMode()` 메서드 **전체를 삭제**하세요. 이 로직은 `BacktestPlayerService`로 이전될 것입니다.
+
+### Task 2: `BacktestPlayerService` 기능 강화
+
+`BacktestPlayerService`가 백테스팅의 총괄 책임자가 되도록, `PriceFeedService`에서 제거된 로직을 가져와 재구현합니다.
+
+1.  **파일 경로**: `apps/kim-p-feeder/src/backtest-session/backtest-player.service.ts`
+2.  **수정 내용**:
+    - 생성자(constructor)에 `kimp-core`의 **`BacktestSessionService`**와 **`CandlestickService`**를 주입받도록 추가하세요. 이 서비스들은 DB와 직접 통신하는 데 사용됩니다.
+    - 백테스팅을 시작하고 전체 과정을 관리하는 `run(sessionId: string)` 메서드를 구현하세요. 이 메서드는 다음의 로직을 포함해야 합니다.
+      1.  `sessionId`를 사용하여 DB에서 세션 정보를 조회합니다.
+      2.  세션의 상태를 'RUNNING'으로 업데이트합니다 (`backtestSessionService.updateStartTime`).
+      3.  세션 정보에 포함된 `datasetId`를 이용해, 해당 데이터셋의 CSV 파일 경로를 찾습니다.
+      4.  CSV 파일을 읽고, 한 줄씩 순회하며 `Redis`로 가격 정보를 발행합니다.
+      5.  모든 데이터 처리가 끝나면, 세션의 상태를 'COMPLETED'로 업데이트합니다 (`backtestSessionService.updateResults`).
+      6.  만약 과정 중에 오류가 발생하면, 세션 상태를 'FAILED'로 업데이트합니다 (`backtestSessionService.markAsFailed`).
+
+### Task 3: 모듈 의존성 정리
+
+서비스들의 역할이 변경되었으므로, NestJS 모듈 파일(`*.module.ts`)의 의존성을 다시 정리하여 오류가 발생하지 않도록 합니다.
+
+1.  **`PriceFeedModule`**: `BacktestSessionModule`에 대한 의존성이 사라졌으므로, `imports` 배열에서 `BacktestSessionModule`을 **제거**하세요.
+2.  **`BacktestSessionModule`**: 이 모듈은 이제 `kimp-core`의 `DatabaseModule`을 `import`하여 `BacktestPlayerService`가 `BacktestSessionService` 등을 사용할 수 있도록 해야 합니다.
+
+---
+
+## 5. 완료 보고: `review.md` 파일 작성
+
+모든 리팩토링 작업이 완료되면, 프로젝트 루트의 `review.md` 파일에 아래 형식으로 변경된 내용을 정리하여 보고해주세요.
 
 ```markdown
-# 프로젝트 최종 안정화 및 완성 보고서
+# [Hotfix] Feeder 서비스 의존성 문제 해결 및 리팩토링 완료
 
-## 1. 종합 시스템 점검 (E2E Test)
+## 1. 문제 원인 분석
 
-- **결과**: 데이터 업로드(Phase 1), 백테스팅 실행(Phase 2), 결과 확인(Phase 3)으로 이어지는 전체 사용자 시나리오를 성공적으로 테스트함.
-- **수정된 버그**: (만약 버그가 있었다면 여기에 수정 내역을 간략히 작성)
-- **현재 상태**: 시스템의 모든 핵심 기능이 유기적으로 연결되어 안정적으로 작동함을 확인함.
+- `PriceFeedService`가 자신의 핵심 책임(가격 수신)과 백테스팅 실행이라는 다른 서비스의 책임을 모두 가지고 있어, 복잡한 의존성 주입 오류 및 순환 참조 문제가 발생함.
 
-## 2. UI 완성 (`recharts` 자산 그래프)
+## 2. 리팩토링 계획 및 실행
 
-- **문제 해결**: `yarn workspace` 명령어를 사용하여 `recharts` 패키지를 프론트엔드 앱에 성공적으로 설치하고, 관련 의존성 문제를 해결함.
-- **기능 구현**: 결과 상세 페이지에 시간에 따른 누적 수익률을 보여주는 자산 그래프를 추가하여, 사용자가 전략의 성과를 시각적으로 직관적이게 파악할 수 있도록 개선함.
+- 각 서비스의 역할을 명확히 분리하는 것을 목표로 리팩토링을 진행함.
+- **`PriceFeedService`**: 백테스팅 관련 로직을 모두 제거하고, `APP_MODE`에 따라 실시간 가격 데이터를 수신하는 단일 책임만 갖도록 수정함.
+- **`BacktestPlayerService`**: 백테스팅 시작, CSV 데이터 로딩 및 재생, 세션 상태 업데이트 등 백테스팅의 전체 흐름을 제어하는 총괄 책임자로 기능을 강화하고 관련 로직을 모두 이전함.
+- **모듈 재구성**: 변경된 서비스 책임에 맞춰 `PriceFeedModule`과 `BacktestSessionModule`의 의존성(imports/exports)을 재정리함.
 
-## 3. 최종 결론
+## 3. 결과
 
-- **개발 완료**: 백테스팅 시스템의 모든 기능 개발, 통합 테스트, UI 완성을 성공적으로 완료함.
-- **프로젝트 상태**: 시스템은 이제 '최적 투자 전략'을 탐색하기 위한 실제 분석 및 연구 활동에 투입될 수 있는 완전한 상태임.
+- `kim-p-feeder` 서비스 실행 시 발생했던 NestJS 의존성 주입 오류가 완전히 해결됨.
+- 각 서비스의 역할과 책임이 명확해져 코드의 가독성과 유지보수성이 향상됨.
+- 시스템이 `APP_MODE`에 따라 실시간 모드와 백테스팅 모드로 완벽하게 분리되어 작동할 수 있는 안정적인 구조를 갖추게 됨.
 ```

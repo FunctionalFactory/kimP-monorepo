@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ArbitrageRecordService, BacktestSessionService } from '@app/kimp-core';
 
-interface BacktestKPI {
+export interface BacktestKPI {
   totalProfitLoss: number;
   totalTrades: number;
   winCount: number;
@@ -13,7 +13,7 @@ interface BacktestKPI {
   sharpeRatio: number;
 }
 
-interface TradeDetail {
+export interface TradeDetail {
   id: string;
   startTime: Date;
   endTime: Date;
@@ -25,7 +25,7 @@ interface TradeDetail {
   roi: number;
 }
 
-interface BacktestResult {
+export interface BacktestResult {
   sessionId: string;
   sessionInfo: {
     id: string;

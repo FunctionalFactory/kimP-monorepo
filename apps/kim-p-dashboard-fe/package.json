@@ -6,7 +6,8 @@
     "dev": "next dev -p 4001",
     "build": "next build",
     "start": "next start -p 4001",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clean": "rm -rf .next dist"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

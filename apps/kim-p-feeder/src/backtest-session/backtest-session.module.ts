@@ -6,7 +6,11 @@ import { FeederBacktestSessionService } from './backtest-session.service';
 import { BacktestPlayerService } from './backtest-player.service';
 
 @Module({
-  imports: [ConfigModule.forRoot(), DatabaseModule, EventEmitterModule.forRoot()],
+  imports: [
+    ConfigModule.forRoot(),
+    DatabaseModule,
+    EventEmitterModule.forRoot(),
+  ],
   providers: [FeederBacktestSessionService, BacktestPlayerService],
   exports: [FeederBacktestSessionService, BacktestPlayerService],
 })

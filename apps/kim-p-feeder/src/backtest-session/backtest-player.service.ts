@@ -5,7 +5,9 @@ import {
   BacktestSessionService,
   BacktestDatasetService,
   BacktestSessionStatus,
+  CandlestickService,
 } from '@app/kimp-core';
+import { RedisPublisherService } from '../redis/redis-publisher.service';
 import * as fs from 'fs';
 import { promisify } from 'util';
 
@@ -31,6 +33,8 @@ export class BacktestPlayerService {
   constructor(
     private readonly backtestSessionService: BacktestSessionService,
     private readonly backtestDatasetService: BacktestDatasetService,
+    private readonly candlestickService: CandlestickService,
+    private readonly redisPublisherService: RedisPublisherService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
   ) {}
@@ -168,7 +172,16 @@ export class BacktestPlayerService {
           parameters, // 세션 파라미터 포함
         };
 
-        // Redis로 데이터 전송 (이벤트 발생)
+        // Redis로 데이터 전송
+        await this.redisPublisherService.publishPriceUpdate({
+          symbol: 'ada', // 기본값, 실제로는 데이터셋에서 추출해야 함
+          exchange: 'upbit', // 기본값
+          price: row.close,
+          timestamp: new Date(row.timestamp).getTime(),
+          sessionId: sessionId,
+        });
+
+        // 이벤트 발생 (기존 호환성을 위해)
         this.eventEmitter.emit('price.update', priceData);
 
         // 실제 환경에서는 약간의 지연을 두어 시뮬레이션
