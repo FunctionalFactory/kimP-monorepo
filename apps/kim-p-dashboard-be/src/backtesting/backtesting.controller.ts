@@ -11,6 +11,7 @@ import {
   Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CsvParsingService } from './csv-parsing.service';
 import {
   HistoricalPriceService,
@@ -18,6 +19,7 @@ import {
   PortfolioLogService,
   CandlestickService,
   BacktestSessionService,
+  BacktestDatasetService,
 } from '@app/kimp-core';
 
 interface BacktestResult {
@@ -45,6 +47,8 @@ export class BacktestingController {
     private readonly portfolioLogService: PortfolioLogService,
     private readonly candlestickService: CandlestickService,
     private readonly backtestSessionService: BacktestSessionService,
+    private readonly backtestDatasetService: BacktestDatasetService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post('upload-data')

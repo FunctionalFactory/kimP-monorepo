@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  Button,
-} from '@mui/material';
+import { Box, Typography, Card, CardContent, Button } from '@mui/material';
 import { CloudUpload, PlayArrow, Assessment } from '@mui/icons-material';
 import Link from 'next/link';
 
@@ -22,8 +15,8 @@ export default function Home() {
         menu to manage your data, run backtests, and view results.
       </Typography>
 
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={4}>
+      <Box sx={{ display: 'flex', gap: 3, mt: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
           <Card>
             <CardContent>
               <CloudUpload
@@ -45,9 +38,9 @@ export default function Home() {
               </Button>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} md={4}>
+        <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
           <Card>
             <CardContent>
               <PlayArrow sx={{ fontSize: 40, color: 'primary.main', mb: 2 }} />
@@ -67,9 +60,9 @@ export default function Home() {
               </Button>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} md={4}>
+        <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
           <Card>
             <CardContent>
               <Assessment sx={{ fontSize: 40, color: 'primary.main', mb: 2 }} />
@@ -89,8 +82,8 @@ export default function Home() {
               </Button>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 }

@@ -7,8 +7,7 @@ import {
   Card,
   CardContent,
   Button,
-  Alert,
-  CircularProgress,
+  TextField,
   Table,
   TableBody,
   TableCell,
@@ -16,209 +15,220 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Alert,
+  CircularProgress,
   Divider,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material';
-import { CloudUpload, Refresh } from '@mui/icons-material';
-import axios from 'axios';
+import {
+  CloudUpload,
+  Description,
+  Event,
+  Storage,
+  Refresh,
+} from '@mui/icons-material';
 
 interface Dataset {
   id: string;
   name: string;
-  uploadDate: string;
-  size: string;
-  status: string;
+  description?: string;
+  originalFileName: string;
+  fileSize: number;
+  createdAt: string;
 }
 
-export default function DataManagement() {
-  const [file, setFile] = useState<File | null>(null);
-  const [symbol, setSymbol] = useState<string>('');
-  const [exchange, setExchange] = useState<string>('BINANCE');
-  const [timeframe, setTimeframe] = useState<string>('1h');
-  const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(false);
+export default function DataManagementPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const exchanges = ['BINANCE', 'UPBIT'];
-  const timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'];
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-      setMessage(null);
-    } else {
-      setMessage({ type: 'error', text: 'Please select a valid CSV file.' });
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file || !symbol.trim() || !exchange.trim() || !timeframe.trim()) {
-      setMessage({
-        type: 'error',
-        text: 'Please select a file and enter all required fields.',
-      });
-      return;
-    }
-
-    setUploading(true);
-    setMessage(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('symbol', symbol.trim());
-      formData.append('exchange', exchange.trim());
-      formData.append('timeframe', timeframe.trim());
-
-      const response = await axios.post(
-        'http://localhost:4000/api/backtest/upload-data',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        },
-      );
-
-      setMessage({ type: 'success', text: 'File uploaded successfully!' });
-      setFile(null);
-      fetchDatasets();
-    } catch (error) {
-      console.error('Upload error:', error);
-      setMessage({
-        type: 'error',
-        text: 'Failed to upload file. Please try again.',
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const fetchDatasets = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(
-        'http://localhost:4000/api/backtest/datasets',
-      );
-      setDatasets(response.data);
-    } catch (error) {
-      console.error('Fetch datasets error:', error);
-      setMessage({ type: 'error', text: 'Failed to fetch datasets.' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    file: null as File | null,
+  });
 
   useEffect(() => {
     fetchDatasets();
   }, []);
 
-  return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Data Management
-      </Typography>
+  const fetchDatasets = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/datasets');
+      const data = await response.json();
 
+      if (data.success) {
+        setDatasets(data.datasets);
+      } else {
+        setError('데이터셋 목록을 불러오는데 실패했습니다.');
+      }
+    } catch (error) {
+      setError('서버 연결에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData((prev) => ({ ...prev, file }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name || !formData.file) {
+      setError('데이터셋 이름과 파일을 모두 입력해주세요.');
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', formData.file);
+      uploadData.append('name', formData.name);
+      if (formData.description) {
+        uploadData.append('description', formData.description);
+      }
+
+      const response = await fetch('/api/datasets/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess('데이터셋이 성공적으로 업로드되었습니다.');
+        setFormData({ name: '', description: '', file: null });
+        fetchDatasets(); // 목록 새로고침
+      } else {
+        setError(data.message || '업로드에 실패했습니다.');
+      }
+    } catch (error) {
+      setError('업로드 중 오류가 발생했습니다.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('ko-KR');
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Description sx={{ mr: 1, fontSize: 28 }} />
+        <Typography variant="h4" component="h1">
+          데이터 관리
+        </Typography>
+      </Box>
+
+      {/* 업로드 섹션 */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Upload Historical Data
+            새 데이터셋 업로드
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Upload CSV files containing historical price data for backtesting.
+            백테스팅에 사용할 CSV 파일을 업로드하세요. 필수 컬럼: timestamp,
+            open, high, low, close, volume
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="데이터셋 이름 *"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="예: ADA 6개월 1분봉 데이터"
+                required
+                sx={{ minWidth: 300 }}
+              />
               <Button
                 variant="outlined"
                 component="label"
                 startIcon={<CloudUpload />}
                 disabled={uploading}
               >
-                Select CSV File
+                CSV 파일 선택
                 <input
                   type="file"
-                  hidden
                   accept=".csv"
                   onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  required
                 />
               </Button>
-              {file && (
-                <Typography variant="body2">Selected: {file.name}</Typography>
-              )}
             </Box>
 
             <TextField
-              label="Symbol (e.g., BTCUSDT)"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              placeholder="Enter trading symbol"
-              disabled={uploading}
-              sx={{ maxWidth: 300 }}
+              label="설명 (선택사항)"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              placeholder="데이터셋에 대한 설명을 입력하세요"
+              multiline
+              rows={3}
+              fullWidth
+              sx={{ mb: 2 }}
             />
 
-            <FormControl sx={{ maxWidth: 300 }} disabled={uploading}>
-              <InputLabel>Exchange</InputLabel>
-              <Select
-                value={exchange}
-                label="Exchange"
-                onChange={(e) => setExchange(e.target.value)}
-              >
-                {exchanges.map((ex) => (
-                  <MenuItem key={ex} value={ex}>
-                    {ex}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {formData.file && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                선택된 파일: {formData.file.name}
+              </Alert>
+            )}
 
-            <FormControl sx={{ maxWidth: 300 }} disabled={uploading}>
-              <InputLabel>Timeframe</InputLabel>
-              <Select
-                value={timeframe}
-                label="Timeframe"
-                onChange={(e) => setTimeframe(e.target.value)}
-              >
-                {timeframes.map((tf) => (
-                  <MenuItem key={tf} value={tf}>
-                    {tf}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
 
-          {file && symbol.trim() && exchange.trim() && timeframe.trim() && (
+            {success && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {success}
+              </Alert>
+            )}
+
             <Button
+              type="submit"
               variant="contained"
-              onClick={handleUpload}
               disabled={uploading}
               startIcon={
                 uploading ? <CircularProgress size={20} /> : <CloudUpload />
               }
             >
-              {uploading ? 'Uploading...' : 'Upload File'}
+              {uploading ? '업로드 중...' : '업로드'}
             </Button>
-          )}
-
-          {message && (
-            <Alert severity={message.type} sx={{ mt: 2 }}>
-              {message.text}
-            </Alert>
-          )}
+          </Box>
         </CardContent>
       </Card>
 
+      {/* 데이터셋 목록 */}
       <Card>
         <CardContent>
           <Box
@@ -229,46 +239,72 @@ export default function DataManagement() {
               mb: 2,
             }}
           >
-            <Typography variant="h6">Historical Datasets</Typography>
+            <Typography variant="h6">업로드된 데이터셋</Typography>
             <Button
               startIcon={<Refresh />}
               onClick={fetchDatasets}
               disabled={loading}
             >
-              Refresh
+              새로고침
             </Button>
           </Box>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            현재 등록된 모든 데이터셋 목록입니다.
+          </Typography>
 
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
               <CircularProgress />
             </Box>
           ) : datasets.length === 0 ? (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ textAlign: 'center', py: 3 }}
-            >
-              No datasets found. Upload a CSV file to get started.
-            </Typography>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body2" color="text.secondary">
+                업로드된 데이터셋이 없습니다.
+              </Typography>
+            </Box>
           ) : (
             <TableContainer component={Paper}>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Upload Date</TableCell>
-                    <TableCell>Size</TableCell>
-                    <TableCell>Status</TableCell>
+                    <TableCell>이름</TableCell>
+                    <TableCell>파일명</TableCell>
+                    <TableCell>크기</TableCell>
+                    <TableCell>업로드 날짜</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {datasets.map((dataset) => (
                     <TableRow key={dataset.id}>
-                      <TableCell>{dataset.name}</TableCell>
-                      <TableCell>{dataset.uploadDate}</TableCell>
-                      <TableCell>{dataset.size}</TableCell>
-                      <TableCell>{dataset.status}</TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body1" fontWeight="medium">
+                            {dataset.name}
+                          </Typography>
+                          {dataset.description && (
+                            <Typography variant="body2" color="text.secondary">
+                              {dataset.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontFamily="monospace">
+                          {dataset.originalFileName}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Storage sx={{ mr: 1, fontSize: 16 }} />
+                          {formatFileSize(dataset.fileSize)}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Event sx={{ mr: 1, fontSize: 16 }} />
+                          {formatDate(dataset.createdAt)}
+                        </Box>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -8,6 +8,7 @@ export * from './db/portfolio-log.service';
 export * from './db/historical-price.service';
 export * from './db/candlestick.service';
 export * from './db/backtest-session.service';
+export * from './db/backtest-dataset.service';
 export * from './db/entities/arbitrage-cycle.entity';
 export * from './db/entities/trade.entity';
 export * from './db/entities/portfolio-log.entity';
@@ -15,6 +16,7 @@ export * from './db/entities/system-setting.entity';
 export * from './db/entities/historical-price.entity';
 export * from './db/entities/candlestick.entity';
 export * from './db/entities/backtest-session.entity';
+export * from './db/entities/backtest-dataset.entity';
 
 // Config exports
 export * from './config/config.module';

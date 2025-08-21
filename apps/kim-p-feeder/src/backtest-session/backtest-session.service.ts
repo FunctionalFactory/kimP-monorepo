@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { BacktestSessionService, CandlestickService } from '@app/kimp-core';
 
 @Injectable()
-export class BacktestSessionService {
-  private readonly logger = new Logger(BacktestSessionService.name);
+export class FeederBacktestSessionService {
+  private readonly logger = new Logger(FeederBacktestSessionService.name);
   private currentSessionId: string | null = null;
   private currentSessionData: any = null;
 

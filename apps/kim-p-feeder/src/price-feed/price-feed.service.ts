@@ -15,7 +15,7 @@ import {
   CandlestickService,
 } from '@app/kimp-core';
 import { RedisPublisherService } from '../redis/redis-publisher.service';
-import { BacktestSessionService } from '../backtest-session/backtest-session.service';
+import { FeederBacktestSessionService } from '../backtest-session/backtest-session.service';
 
 export interface PriceUpdateData {
   symbol: string;
@@ -56,7 +56,7 @@ export class PriceFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly redisPublisherService: RedisPublisherService,
     private readonly historicalPriceService: HistoricalPriceService,
     private readonly candlestickService: CandlestickService,
-    private readonly backtestSessionService: BacktestSessionService,
+    private readonly backtestSessionService: FeederBacktestSessionService,
   ) {
     this._watchedSymbolsConfig = this.configService.get<WatchedSymbolConfig[]>(
       'WATCHED_SYMBOLS',

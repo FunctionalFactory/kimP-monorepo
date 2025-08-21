@@ -235,15 +235,13 @@ export class FinalizerService {
 
     // 2. 포트폴리오 로그 기록
     await this.portfolioLogService.createLog({
-      timestamp: new Date(),
-      upbit_balance_krw: rebalanceResult.finalBalance * 0.5, // 예시
-      binance_balance_krw: rebalanceResult.finalBalance * 0.5, // 예시
       total_balance_krw: rebalanceResult.finalBalance,
       cycle_pnl_krw: rebalanceResult.totalProfit,
-      cycle_pnl_rate_percent:
+      total_pnl_krw: rebalanceResult.totalProfit,
+      roi_percentage:
         (rebalanceResult.totalProfit / cycle.initialInvestmentKrw) * 100,
-      linked_arbitrage_cycle_id: cycle.id,
-      remarks: `재균형 거래 완료: ${rebalanceResult.tradeId}`,
+      log_type: 'FINAL',
+      cycle_id: Number(cycle.id),
     });
 
     this.logger.log(

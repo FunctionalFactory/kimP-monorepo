@@ -46,20 +46,10 @@ export class OpportunityScannerService implements OnModuleInit {
 
   @OnEvent('price.update')
   async handlePriceUpdate(data: PriceUpdateData) {
-    const { symbol, exchange, price, sessionId } = data;
+    const { symbol, exchange, price } = data;
 
-    // 백테스트 모드에서 세션 ID가 있는 경우 세션별 파라미터 사용
+    // 백테스트 모드에서 세션 파라미터 사용 (현재는 기본값 사용)
     let sessionParameters = null;
-    if (sessionId) {
-      try {
-        const session = await this.backtestSessionService.findById(sessionId);
-        if (session && session.status === 'RUNNING') {
-          sessionParameters = session.parameters;
-        }
-      } catch (error) {
-        this.logger.error(`세션 파라미터 조회 오류: ${error.message}`);
-      }
-    }
 
     if (!this.lastPrices[symbol]) this.lastPrices[symbol] = {};
     this.lastPrices[symbol][exchange] = price;
@@ -80,7 +70,7 @@ export class OpportunityScannerService implements OnModuleInit {
         this.logger.log(
           `[기회감지] ${symbol} 스프레드: ${opportunity.spreadPercent.toFixed(2)}%, Normal: ${opportunity.isNormalOpportunity}`,
         );
-        await this.tradeExecutor.initiateArbitrageCycle(opportunity, sessionId);
+        await this.tradeExecutor.initiateArbitrageCycle(opportunity);
       }
     }
   }
@@ -103,7 +93,8 @@ export class OpportunityScannerService implements OnModuleInit {
         // 기본값 사용
         investmentAmount =
           await this.portfolioManagerService.getCurrentInvestmentAmount();
-        minSpread = await this.investmentConfigService.getMinSpread();
+        minSpread =
+          this.investmentConfigService.getInvestmentConfig().minSpreadPercent;
       }
 
       if (investmentAmount <= 0) {
@@ -117,7 +108,6 @@ export class OpportunityScannerService implements OnModuleInit {
         upbitPrice,
         binancePrice,
         investmentAmount,
-        minSpread, // 세션 파라미터에서 가져온 최소 스프레드 사용
       });
 
       if (!spreadResult) {
