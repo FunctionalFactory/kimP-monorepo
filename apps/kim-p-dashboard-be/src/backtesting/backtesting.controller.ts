@@ -21,6 +21,7 @@ import {
   BacktestSessionService,
   BacktestDatasetService,
 } from '@app/kimp-core';
+import { BacktestResultService } from './backtest-result.service';
 
 interface BacktestResult {
   totalProfitLoss: number;
@@ -48,6 +49,7 @@ export class BacktestingController {
     private readonly candlestickService: CandlestickService,
     private readonly backtestSessionService: BacktestSessionService,
     private readonly backtestDatasetService: BacktestDatasetService,
+    private readonly backtestResultService: BacktestResultService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -247,6 +249,27 @@ export class BacktestingController {
       }
       throw new HttpException(
         '백테스트 세션 조회 중 오류가 발생했습니다.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('sessions/:id/results')
+  async getBacktestSessionResults(@Param('id') id: string) {
+    try {
+      const result = await this.backtestResultService.analyze(id);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      this.logger.error(`백테스트 세션 결과 조회 오류: ${error.message}`);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        '백테스트 세션 결과 조회 중 오류가 발생했습니다.',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

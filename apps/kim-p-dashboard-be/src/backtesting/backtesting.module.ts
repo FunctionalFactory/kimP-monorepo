@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '@app/kimp-core';
 import { BacktestingController } from './backtesting.controller';
 import { CsvParsingService } from './csv-parsing.service';
+import { BacktestResultService } from './backtest-result.service';
 
 @Module({
   imports: [
@@ -12,6 +13,6 @@ import { CsvParsingService } from './csv-parsing.service';
     DatabaseModule,
   ],
   controllers: [BacktestingController],
-  providers: [CsvParsingService],
+  providers: [CsvParsingService, BacktestResultService],
 })
 export class BacktestingModule {}

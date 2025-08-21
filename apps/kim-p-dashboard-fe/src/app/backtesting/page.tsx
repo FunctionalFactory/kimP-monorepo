@@ -23,7 +23,9 @@ import {
   Assessment,
   AccountBalance,
   TrendingUp,
+  Visibility,
 } from '@mui/icons-material';
+import { useRouter } from 'next/navigation';
 
 interface Dataset {
   id: string;
@@ -53,6 +55,7 @@ interface BacktestSession {
 }
 
 export default function BacktestingPage() {
+  const router = useRouter();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<BacktestSession | null>(null);
@@ -344,9 +347,18 @@ export default function BacktestingPage() {
               <Typography variant="body2" paragraph>
                 백테스팅이 자동으로 시작되었습니다. 진행 상황은 시스템 로그에서 확인할 수 있습니다.
               </Typography>
-              <Typography variant="body2">
-                완료 후 Results Dashboard에서 상세한 결과를 확인하세요.
-              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<Visibility />}
+                  onClick={() => router.push(`/results/${session.sessionId}`)}
+                >
+                  결과 보기
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                  완료 후 상세한 결과를 확인하세요.
+                </Typography>
+              </Box>
             </Paper>
           )}
         </CardContent>

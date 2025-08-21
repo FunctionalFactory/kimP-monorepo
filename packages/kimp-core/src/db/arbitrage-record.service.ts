@@ -222,6 +222,25 @@ export class ArbitrageRecordService {
   }
 
   /**
+   * 완료된 모든 사이클을 조회합니다.
+   */
+  async getAllCompletedCycles(): Promise<ArbitrageCycle[]> {
+    return await this.arbitrageCycleRepository.find({
+      where: { status: 'COMPLETED' },
+      order: { startTime: 'ASC' },
+    });
+  }
+
+  /**
+   * 특정 세션의 완료된 사이클들을 조회합니다.
+   */
+  async getCompletedCyclesBySession(sessionId: string): Promise<ArbitrageCycle[]> {
+    // TODO: ArbitrageCycle에 sessionId 필드가 추가되면 이 메서드를 구현하세요
+    // 현재는 모든 완료된 사이클을 반환합니다.
+    return await this.getAllCompletedCycles();
+  }
+
+  /**
    * 다음 대기 중인 사이클을 찾아서 즉시 잠금 처리합니다.
    * 여러 Finalizer 인스턴스 간의 Race Condition을 방지하고, 타임아웃된 잠금을 자동으로 해제합니다.
    */
